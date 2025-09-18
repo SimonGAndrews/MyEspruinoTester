@@ -1,0 +1,73 @@
+{
+  "board": "ESP32C3",
+  "description": "ESP32-C3 USB/serial harness manifest for Espruino testing",
+  "upstream": {
+    "id": "ESP32C3",
+    "binary": "espruino_%v_esp32c3.bin"
+  },
+  "firmware": {
+    "pattern": "espruino_%v_esp32c3.bin",
+    "artifacts": [
+      {
+        "name": "bootloader",
+        "filename": "bootloader.bin",
+        "offset": "0x0"
+      },
+      {
+        "name": "partitions",
+        "filename": "partition-table.bin",
+        "offset": "0x8000"
+      },
+      {
+        "name": "application",
+        "filename": "%pattern%",
+        "offset": "0x10000"
+      }
+    ]
+  },
+  "flash": {
+    "type": "esp32-esptool",
+    "chip": "esp32c3",
+    "baud": 460800,
+    "mode": "dio",
+    "freq": "80m",
+    "extraArgs": [
+      "--before",
+      "usb_reset",
+      "--after",
+      "hard_reset"
+    ],
+    "_notes_reset": "Default uses USB Serial-JTAG (usb_reset). For UART DTR/RTS, set extraArgs to ['--before','default_reset','--after','hard_reset'] and use /dev/ttyUSB*."
+  },
+  "ports": {
+    "serial": [
+      "/dev/ttyACM*",
+      "/dev/ttyUSB*"
+    ],
+    "baud": 115200
+  },
+  "fixtures": {
+    "wifi": "default",
+    "peripherals": []
+  },
+  "suites": {
+    "default": [
+      "javascript-core",
+      "library-xfsm"
+    ],
+    "available": [
+      "javascript-core",
+      "library-xfsm",
+      "hardware-io",
+      "wifi-connectivity",
+      "javascript-upstream"
+    ]
+  },
+  "targets": [
+    "esp32c3"
+  ],
+  "tests": [
+    "javascript-core",
+    "library-xfsm"
+  ]
+}

@@ -1,1 +1,4 @@
 node_modules
+EspruinoTools/*
+results/*
+firmware/*

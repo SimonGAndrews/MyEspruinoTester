@@ -1,0 +1,72 @@
+{
+  "board": "ESP32",
+  "description": "Generic ESP32 DevKit harness manifest for Espruino testing",
+  "upstream": {
+    "id": "ESP32",
+    "binary": "espruino_%v_esp32.bin"
+  },
+  "firmware": {
+    "pattern": "espruino_%v_esp32.bin",
+    "artifacts": [
+      {
+        "name": "bootloader",
+        "filename": "bootloader.bin",
+        "offset": "0x0"
+      },
+      {
+        "name": "partitions",
+        "filename": "partition-table.bin",
+        "offset": "0x8000"
+      },
+      {
+        "name": "application",
+        "filename": "%pattern%",
+        "offset": "0x10000"
+      }
+    ]
+  },
+  "flash": {
+    "type": "esp32-esptool",
+    "chip": "esp32",
+    "baud": 921600,
+    "mode": "dio",
+    "freq": "40m",
+    "extraArgs": [
+      "--before",
+      "default_reset",
+      "--after",
+      "hard_reset"
+    ]
+  },
+  "ports": {
+    "serial": [
+      "/dev/ttyUSB*",
+      "/dev/ttyACM*"
+    ],
+    "baud": 115200
+  },
+  "fixtures": {
+    "wifi": "default",
+    "peripherals": []
+  },
+  "suites": {
+    "default": [
+      "javascript-core",
+      "library-xfsm"
+    ],
+    "available": [
+      "javascript-core",
+      "library-xfsm",
+      "hardware-io",
+      "wifi-connectivity",
+      "javascript-upstream"
+    ]
+  },
+  "targets": [
+    "esp32"
+  ],
+  "tests": [
+    "javascript-core",
+    "library-xfsm"
+  ]
+}
