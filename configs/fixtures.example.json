@@ -1,0 +1,27 @@
+{
+  "wifi": {
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "YOUR_WIFI_PASSWORD",
+    "timeout": 25000,
+    "hostname": "espruino-tester",
+    "bssid": "AA:BB:CC:DD:EE:FF",
+    "scanAttempts": 3,
+    "scanIntervalMs": 2000
+  },
+  "wifi_invalid": {
+    "enabled": false,
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "WRONG_PASSWORD",
+    "timeout": 12000
+  },
+  "wifi_dhcp": {
+    "enabled": false,
+    "ssid": "AP_WITHOUT_DHCP",
+    "password": "OPTIONAL",
+    "timeout": 20000
+  },
+  "http": {
+    "url": "http://example.com/",
+    "timeout": 15000
+  }
+}

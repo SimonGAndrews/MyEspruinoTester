@@ -71,25 +71,27 @@ Common issues:
 
 Usage:
 ```bash
-node scripts/run-tests.js --board ESP32C3 --port /dev/ttyACM0 --suites javascript-core,wifi-connectivity --quiet
+node scripts/run-tests.js --board ESP32C3 --port /dev/ttyACM0 --suites javascript-core,wifi-connectivity --fixtures configs/lab.json --quiet
 ```
 
 Options:
 - `--board`, `-b`: board name (required).
 - `--port`, `-p`: serial port device (required).
 - `--suites`, `-s`: comma-separated suites (defaults to manifest’s `suites.default`).
+- `--fixtures`, `-f`: path to a JSON fixtures file injected as `global.ESPRUINO_WIFI_FIXTURES`.
 - `--quiet`, `-q`: suppress verbose serial logging during each test upload.
 - `--help`, `-h`: show usage.
 
 Behaviour:
 - Each test file is wrapped with a timeout prologue/epilogue, uploaded via the Espruino CLI, and the JSON result is parsed.
 - Supports synchronous or asynchronous tests (via global `result`/`resultReason`).
-- Outputs PASS/FAIL per test and a suite summary.
+- Outputs PASS/FAIL/SKIP per test and a suite summary.
 - Writes suite-level JSON results to `results/<timestamp>/<board>/<suite>.json`.
 
 Common issues:
 - `Error: unknown suites`: ensure suite names are listed in the board’s manifest `suites.available` and mapped in `lib/tests.js`.
 - Tests reporting `no_result`: indicates no JSON result line was parsed (often missing `result` or unhandled async logic).
+- `Error loading fixtures`: confirm the file path is correct and the JSON is valid.
 
 ---
 
@@ -126,7 +128,9 @@ Common issues:
 | `Flashing failed: spawn esptool.py ENOENT` | esptool not in `$PATH` | Install esptool (`pip install esptool`) or use `--esptool /path/to/esptool.py`. |
 | Tests report `FAIL (no_result)` | Test never set global `result`; or CLI output wasn’t parsed | Ensure each test sets `result` (and `resultReason` optional). Check the JSON parsing logic if CLI output is prefixed (e.g., `--]`). |
 | `Wifi module not an object` | Suite run on a board or firmware without `Wifi` | Remove suite from manifest or update tests to skip when `require('Wifi')` returns undefined. |
+| Test reported as `SKIP` | Fixture or capability intentionally absent | Review the skip reason and enable the required fixtures/features before re-running. |
 | `No tests discovered for given suites` | Wrong suite name or empty suite mapping in `lib/tests.js` | Check that `lib/tests.js` maps suite names to actual files. |
+| `Error loading fixtures` | Fixtures path missing or JSON invalid | Provide a readable JSON file and pass it via `--fixtures`. |
 | Node baseline mismatches device behaviour | Host runtime lacks Espruino-specific APIs | Limit baseline runs to pure JavaScript suites that don’t touch device-only modules. |
 
 ---
@@ -134,5 +138,5 @@ Common issues:
 ## Quick Reference
 - Validate config: `node scripts/dry-run.js --board ESP32C3 --version 2v27.32 --suites javascript-core`
 - Flash firmware (dry run): `node scripts/flash.js --board ESP32C3 --version 2v27.32 --port /dev/ttyACM0 --dry-run`
-- Run suites (device): `node scripts/run-tests.js --board ESP32C3 --port /dev/ttyACM0 --suites javascript-core,wifi-connectivity --quiet`
+- Run suites (device): `node scripts/run-tests.js --board ESP32C3 --port /dev/ttyACM0 --suites javascript-core,wifi-connectivity --fixtures configs/lab.json --quiet`
 - Run baseline (Node): `node scripts/run-node-baseline.js --suites javascript-upstream`

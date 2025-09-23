@@ -7,6 +7,8 @@
 // The runner injects a small epilogue that prints a single JSON line per test.
 // We parse only that JSON line to determine pass/fail.
 
+const fs = require('fs');
+const path = require('path');
 const { REPO_ROOT, loadManifest, resolveSuites } = require('../lib/manifest');
 const { resolveSuiteTests } = require('../lib/tests');
 
@@ -36,6 +38,7 @@ function parseArgs(argv) {
       case 's': args.suites=n; i++; break;
       case 'h': args.help=true; break;
       case 'q': args.quiet=true; break;
+      case 'f': args.fixtures=n; i++; break;
       default: args[f]=true;
     }
   }
@@ -50,6 +53,7 @@ Options:
   -p, --port    Serial/BLE port (required)
   -s, --suites  Comma-separated suites (default: manifest defaults)
   -q, --quiet   Suppress noisy logging during test upload
+  -f, --fixtures Path to JSON fixtures injected as global.ESPRUINO_WIFI_FIXTURES
 `);
 }
 
@@ -75,21 +79,53 @@ async function warmup(E, port, quiet=false) {
 }
 
 // Build wrapped source: prologue sets timeout; epilogue polls for `result` and prints JSON
-function composeWrappedTest(fileId, src, timeoutSec) {
-  const prologue = `var __TEST_TIMEOUT_SEC=${Math.max(1, timeoutSec)};\n`;
+function composeWrappedTest(fileId, src, timeoutSec, contextInjection) {
+  const injections = [];
+  injections.push(`var __TEST_TIMEOUT_SEC=${Math.max(1, timeoutSec)};`);
+  if (contextInjection) injections.push(contextInjection);
+  const prologue = injections.join('\n') + '\n';
   const epilogue = `
 (function(){
   function now(){return (typeof getTime==='function'?getTime():Date.now()/1000);}
   var __t0 = now();
   var __deadline = __t0 + (__TEST_TIMEOUT_SEC||5);
-  function done(ok, reason){
-    var out={__espruino_test__:true,file:"${fileId}",pass:!!ok,duration_ms:Math.round((now()-__t0)*1000),reason: reason || (typeof resultReason!=='undefined'?resultReason:null) || null};
+  function done(value){
+    var duration = Math.round((now()-__t0)*1000);
+    var status = 'pass';
+    var reason = null;
+    var ok = true;
+    if (value !== null && typeof value === 'object') {
+      if (typeof value.status === 'string') {
+        status = value.status;
+      } else if (value.skip) {
+        status = 'skip';
+      } else if (typeof value.pass !== 'undefined') {
+        status = value.pass ? 'pass' : 'fail';
+      } else {
+        ok = !!value;
+        status = ok ? 'pass' : 'fail';
+      }
+      if (typeof value.reason !== 'undefined' && value.reason !== null) reason = value.reason;
+    } else {
+      ok = !!value;
+      status = ok ? 'pass' : 'fail';
+    }
+    if (typeof resultStatus !== 'undefined' && resultStatus !== null) status = resultStatus;
+    if (reason === null && typeof resultReason !== 'undefined' && resultReason !== null) reason = resultReason;
+    var passValue = status === 'pass';
+    if (status === 'skip') passValue = false;
+    var out={__espruino_test__:true,file:"${fileId}",pass:passValue,status:status,duration_ms:duration,reason: reason || null};
     print(JSON.stringify(out));
+    if (typeof resultStatus !== 'undefined') resultStatus = undefined;
+    if (typeof resultReason !== 'undefined') resultReason = undefined;
+    if (typeof result !== 'undefined') result = undefined;
   }
   (function wait(){
     if (typeof result!=='undefined') return done(result);
     if (now()<__deadline) return setTimeout(wait,50);
-    done(false, 'timeout');
+    resultStatus = 'fail';
+    resultReason = 'timeout';
+    done(false);
   })();
 })();
 `;
@@ -97,13 +133,11 @@ function composeWrappedTest(fileId, src, timeoutSec) {
 }
 
 // Run one test using the Espruino CLI to keep a persistent session per test
-async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=false) {
-  const fs = require('fs');
-  const path = require('path');
+async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=false, contextInjection='') {
   const { spawn } = require('child_process');
   const src = fs.readFileSync(testPath,'utf8');
   const fileId = path.basename(testPath);
-  const wrapped = composeWrappedTest(fileId, src, Math.round(timeoutMs/1000));
+  const wrapped = composeWrappedTest(fileId, src, Math.round(timeoutMs/1000), contextInjection);
 
   return new Promise((resolve) => {
     let done = false;
@@ -113,7 +147,7 @@ async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=fa
     if (boardArg) args.push('--board', boardArg);
     const child = spawn(cmd, args, { stdio: ['ignore','pipe','pipe'] });
     let out=''; let err='';
-    const timer = setTimeout(()=>{ if(!done){ done=true; try{child.kill('SIGINT');}catch(_){} resolve({ pass:false, reason:'timeout', output: out||err }); }}, timeoutMs+1000);
+    const timer = setTimeout(()=>{ if(!done){ done=true; try{child.kill('SIGINT');}catch(_){} resolve({ pass:false, status:'fail', reason:'timeout', output: out||err }); }}, timeoutMs+1000);
     child.stdout.on('data', d=>{ out += d.toString(); });
     child.stderr.on('data', d=>{ err += d.toString(); });
     child.on('close', () => {
@@ -126,8 +160,17 @@ async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=fa
           if (m) { try { record = JSON.parse(m[1]); } catch(e){} }
         }
       });
-      if (record) resolve({ pass: !!record.pass, output: out, reason: record.reason||null, duration_ms: record.duration_ms||null, file: record.file });
-      else resolve({ pass:false, output: out || err, reason: 'no_result' });
+      if (record) {
+        resolve({
+          pass: record.status ? record.status === 'pass' : !!record.pass,
+          skipped: record.status === 'skip',
+          status: record.status || (record.pass ? 'pass' : 'fail'),
+          output: out,
+          reason: record.reason||null,
+          duration_ms: record.duration_ms||null,
+          file: record.file
+        });
+      } else resolve({ pass:false, status:'fail', output: out || err, reason: 'no_result' });
     });
   });
 }
@@ -138,6 +181,24 @@ async function main() {
   if (args.help) { usage(); process.exit(0); }
   const board = args.board || args.device || args._[0];
   if (!board) { console.error('Error: --board <name> is required'); usage(); process.exit(1); }
+
+  let fixtures = null;
+  let fixtureInjection = '';
+  if (args.fixtures) {
+    if (typeof args.fixtures !== 'string') {
+      console.error('Error: --fixtures requires a path to a JSON file');
+      process.exit(1);
+    }
+    const fixturesPath = path.isAbsolute(args.fixtures) ? args.fixtures : path.resolve(process.cwd(), args.fixtures);
+    try {
+      const raw = fs.readFileSync(fixturesPath, 'utf8');
+      fixtures = JSON.parse(raw);
+      fixtureInjection = `global.ESPRUINO_WIFI_FIXTURES = ${JSON.stringify(fixtures)};`;
+    } catch (e) {
+      console.error(`Error loading fixtures from ${args.fixtures}: ${e.message || e}`);
+      process.exit(1);
+    }
+  }
 
   let manifest, manifestPath;
   try {
@@ -178,15 +239,21 @@ async function main() {
   // Warm up device to consume banner/prompt noise
   await warmup(E, port, Boolean(args.quiet));
 
-  let passCount=0, failCount=0;
+  let passCount=0, failCount=0, skipCount=0;
   const results = []; const pairs = [];
   for (const t of tests) {
     process.stdout.write(`Running ${t.id} ... `);
     try {
-      const res = await runOneTest(E, port, t.path, manifest, 15000, Boolean(args.quiet));
+      const suiteTimeout = t.suite === 'wifi-station' ? 30000 : 15000;
+      const res = await runOneTest(E, port, t.path, manifest, suiteTimeout, Boolean(args.quiet), fixtureInjection);
       results.push(res); pairs.push({ test: t, res });
-      if (res.pass) {
-        passCount++; console.log('PASS');
+      if (res.status === 'skip') {
+        skipCount++;
+        const reason = res.reason ? ` (${res.reason})` : '';
+        console.log('SKIP' + reason);
+      } else if (res.pass) {
+        passCount++;
+        console.log('PASS');
       } else {
         failCount++;
         const reason = res.reason ? ` (${res.reason})` : '';
@@ -203,10 +270,12 @@ async function main() {
   const bySuite = {};
   pairs.forEach(pr=>{
     const t = pr.test, r = pr.res;
-    const rec = { file: t.id, pass: !!r.pass, reason: r.reason||null, duration_ms: r.duration_ms||null };
-    bySuite[t.suite] = bySuite[t.suite] || { tests: [], pass:0, fail:0 };
+    const rec = { file: t.id, pass: r.status === 'pass', status: r.status || (r.pass ? 'pass' : 'fail'), reason: r.reason||null, duration_ms: r.duration_ms||null };
+    bySuite[t.suite] = bySuite[t.suite] || { tests: [], pass:0, fail:0, skip:0 };
     bySuite[t.suite].tests.push(rec);
-    if (rec.pass) bySuite[t.suite].pass++; else bySuite[t.suite].fail++;
+    if (rec.status === 'skip') bySuite[t.suite].skip++;
+    else if (rec.pass) bySuite[t.suite].pass++;
+    else bySuite[t.suite].fail++;
   });
 
   console.log('');
@@ -214,9 +283,9 @@ async function main() {
   console.log('============');
   Object.keys(bySuite).forEach(sname=>{
     const s = bySuite[sname];
-    const total = s.pass + s.fail;
+    const total = s.pass + s.fail + s.skip;
     const ms = s.tests.reduce((a,b)=>a+(b.duration_ms||0),0);
-    console.log(`${sname}: ${s.pass}/${total} passed, total ${ms} ms`);
+    console.log(`${sname}: ${s.pass} passed, ${s.fail} failed, ${s.skip} skipped, total ${ms} ms`);
   });
 
   // Persist JSON under results/<ts>/<board>/<suite>.json
@@ -236,7 +305,7 @@ async function main() {
     console.log(`Saved results to results/${stamp}/${board}/`);
   } catch(e){}
 
-  console.log(`\nResults: ${passCount} passed, ${failCount} failed`);
+  console.log(`\nResults: ${passCount} passed, ${failCount} failed, ${skipCount} skipped`);
   process.exit(failCount?1:0);
 }
 

@@ -61,12 +61,5 @@
       "wifi-connectivity",
       "javascript-upstream"
     ]
-  },
-  "targets": [
-    "esp32s3"
-  ],
-  "tests": [
-    "javascript-core",
-    "library-xfsm"
-  ]
+  }
 }

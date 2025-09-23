@@ -1,8 +1,8 @@
 {
-  "board": "ESP32C3",
+  "board": "ESP32C3_IDF4",
   "description": "ESP32-C3 USB/serial harness manifest for Espruino testing",
   "upstream": {
-    "id": "ESP32C3",
+    "id": "ESP32C3_IDF4",
     "binary": "espruino_%v_esp32c3.bin"
   },
   "firmware": {
@@ -53,21 +53,20 @@
   "suites": {
     "default": [
       "javascript-core",
-      "library-xfsm"
+      "wifi-core",
+      "wifi-station"
     ],
     "available": [
       "javascript-core",
-      "library-xfsm",
-      "hardware-io",
-      "wifi-connectivity",
-      "javascript-upstream"
+      "javascript-upstream",
+      "wifi-core",
+      "wifi-station",
+      "wifi-http-client",
+      "wifi-http-server",
+      "wifi-mqtt-ws",
+      "wifi-ap",
+      "wifi-config-diagnostics",
+      "basicAsync"
     ]
-  },
-  "targets": [
-    "esp32c3"
-  ],
-  "tests": [
-    "javascript-core",
-    "library-xfsm"
-  ]
+  }
 }

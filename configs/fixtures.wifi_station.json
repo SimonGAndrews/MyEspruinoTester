@@ -1,0 +1,24 @@
+{
+  "wifi": {
+    "ssid": "BT-GZAH5J",
+    "password": "Qvm3HbnRVYAYQt",
+    "timeout": 25000,
+    "hostname": "espruino-tester"
+  },
+  "wifi_invalid": {
+    "enabled": false,
+    "ssid": "_MISSING",
+    "password": "WRONG_PASSWORD",
+    "timeout": 12000
+  },
+  "wifi_dhcp": {
+    "enabled": false,
+    "ssid": "AP_WITHOUT_DHCP",
+    "password": "OPTIONAL",
+    "timeout": 20000
+  },
+  "http": {
+    "url": "http://example.com/",
+    "timeout": 15000
+  }
+}
