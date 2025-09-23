@@ -1,81 +1,52 @@
-Continuation of Espruino Test Harness Development - 3 WIFI tests (cont). 
-This conversation is a continuation of the discussion 'Continuation of Espruino Test Harness Development - 2 WIFI tests. This conversation is a continuation (previous conversati'  whcih has had to be abandoined due to the Error 'stream disconnected before completion: Your input exceeds the context window of this model. Please adjust your input and try again.'   and is no longer usable.
+# Espruino Wi-Fi Harness – Working Notes (SGA_V02)
 
-The objective is to continue with the development of an Espruino test Harness as described in local docs
-/home/simon/Espruino/MyEspruinoTester01/docs/baseline-requirements.md, docs/cli-guide.md, docs/manifest-reference.md. The current task is to complete a set of test suites for the ESP32 family wifi functionality as described in docs/TestPlan_Wifi.md.
+## Context
+- Goal: converge the ESP32 Wi-Fi test harness on the original Gordon-style CLI workflow while modernising the suites described in `docs/TestPlan_Wifi.md`.
+- Active tooling references: `docs/baseline-requirements.md`, `docs/cli-guide.md`, `docs/manifest-reference.md`, and the multi-suite plan in `docs/TestPlan_Wifi.md`.
+- Current branch: `SGA_V02` (mirrored upstream).
 
-After a number of deelopment (see /scripts/*.js ) we are seeking to bring the design and implmementation in line with that originally designed and used in this repository within index.js .  This was the original approach designed for this test harness aby the Espruino developer Gordn Williams.  This current development is executteds with 
+## Runner Landscape
+| Script | Purpose | Recent Updates |
+| --- | --- | --- |
+| `scripts/run-tests-gordon.js` | Shell-out harness matching Gordon Williams’ original flow. | Now accepts `--fixtures`, injects `global.ESPRUINO_WIFI_FIXTURES`, keeps serial sessions alive with heartbeats, and aborts early when the port is already in use. Logs and wrapped sources land under `results/<timestamp>/<board>/`. |
+| `scripts/run-tests.js` | Feature-rich harness with manifest awareness. | Fixtures flag added earlier in the project; station timeout bumped to 30 s. Continues to run in parallel while we evaluate the Gordon baseline. |
 
-node scripts/run-tests-gordon.js   --board ESP32C3   --port /dev/ttyACM0   --suites wifi-core 
+When the serial port is busy the Gordon runner now exits with:
+```
+Error: device busy (is another REPL connected to /dev/ttyACM0?). Aborting test run.
+```
+This prevents the cascade of `no_result` failures we previously saw when the Web IDE or a spare REPL had the port open.
 
-This approach has been proved, and is broadly operational with:
+## Wi-Fi Suite Status
+All Wi-Fi tests now emit structured `{ status, pass, reason }` results so the new harnesses cannot get stuck waiting for output.
 
-node scripts/run-tests-gordon.js   --board ESP32C3   --port /dev/ttyACM0   --suites wifi-core 
+### `wifi-core`
+- `test_module_presence.js`, `test_api_methods.js`, `test_scan_callback.js` rewritten to use structured results and tolerate missing optional APIs.
 
-but is still proving problemmatic testing the wifi components .  The errors being tests returning 'results.status' as fail because of no results.  We are in the middle of debuggin this when the previous dioscussion became unusable.  The error seem to be bound up with the espruino CLI execution of the scripts.  Hence the re-focus on use of Gordons approach as it should be sound. 
+### `wifi-station`
+- Active tests: `test_connect_get_ip.js`, `test_event_callbacks.js`, `test_auth_failure_events.js`, `test_dhcp_timeout_event.js`, `test_scan_for_fixture.js`.
+- Each test loads fixtures via `global.ESPRUINO_WIFI_FIXTURES`, performs aggressive cleanup, and reports SKIP when credentials or optional firmware hooks are unavailable.
+- Event tests now prefer `wifi.removeListener` and fall back to `wifi.removeAllListeners`, matching REPL observations.
+- Deprecated checks (`wifi.setAutoConnect`, `wifi.setReconnectInterval`) removed from the suite and documentation.
 
-The development of the new approach is still WIP and not all of the functionality tried in the other versions has been ported to run-tests-gordon.js  as of yet.  
+### `wifi-http-client`
+- `test_http_module_present.js`, `test_http_get_smoke.js`, `test_https_support.js` converted to structured results and defensive skip/timeout handling.
 
-Some of the key points in the previous conversdation are:
+### Other Suites
+- `wifi-ap`, `wifi-config-diagnostics`, `wifi-mqtt-ws`, `wifi-http-server` restored from the original archives to give the runner full coverage parity.
 
-- The requirements doc was updated prior to starting on the 'Gordon version'  so current status and gaps are not accurate.
+## Fixtures
+- Repository now ships with `configs/fixtures.example.json` plus a lab template (`configs/fixtures.wifi_station.json`). Tests skip cleanly when the relevant fixture block is disabled.
 
- - scripts/run-tests.js:10-162 now accepts --fixtures/-f, loads JSON (see configs/fixtures.example.json:1) and injects it as global.ESPRUINO_WIFI_FIXTURES for every test; station-suite timeouts were bumped to 30 s so connects have room to succeed.
- 
- - tests/wifi-station/test_connect_get_ip.js:1 now resets the Wi‑Fi state, connects using credentials from global.ESPRUINO_WIFI_FIXTURES, and waits for a real IP (with cleanup on failure/success).
+## Operational Tips
+1. **Before running tests**: ensure no REPL/Web IDE is holding `/dev/ttyACM0`. The Gordon runner will abort, but the standard runner still attempts every test.
+2. **Capturing logs**: check `results/<timestamp>/<board>/logs/*.stdout` and `.stderr` for the raw Espruino CLI output; `sources/` houses the unwrapped test code for each run.
+3. **Updating suites**: add files under `tests/<suite>/test_*.js`; discovery filters out any other prefix.
 
- - tests/wifi-station/test_scan_for_fixture.js:1 now scans repeatedly for the fixture SSID/BSSID (with configurable attempts/intervals) before any connection logic runs, skipping cleanly when fixtures are absent.
+## Next Steps (handoff for new thread)
+- Re-enable Wi-Fi connection tests end-to-end using lab fixtures; focus on stability of `test_connect_get_ip.js` and ensure `wifi.getIP()` reports non-zero addresses.
+- Expand `wifi-event` coverage to include reconnect loops once we stabilise the connection path.
+- Port HTTP/WebSocket fixture endpoints into the Gordon runner (fixtures injection already in place).
+- Investigate reducing CLI noise (BLE warnings) once functional coverage is stable.
 
-and more recently with run-tests-gordon.js:
-
-- Set up a “Gordon-style” baseline that bypasses all Wi-Fi complexity so we can validate the harness end to end:
-
-Added a tiny async test suite at tests/basicAsync/test_async_example.js.
-Updated boards/ESP32C3.json and lib/tests.js so basicAsync is a recognised suite.
-Built scripts/run-tests-gordon.js, a lean runner that shells out to the espruino CLI for each test (just like the original index.js flow), wraps test sources in a simple result harness, and reports PASS/FAIL/SKIP. No fixtures, no Wi-Fi modules required.
-You can try it straight away:
-
-node scripts/run-tests-gordon.js \
-  --board ESP32C3 \
-  --port /dev/ttyACM0 \
-  --suites basicAsync
-You should see:
-
-Test Run Summary
-================
-Board:    ESP32C3
-...
-Tests:    test_async_example.js
-Running test_async_example.js ... PASS
-
-Results: 1 passed, 0 failed, 0 skipped
-That gives us a clean baseline for the harness. Once you’re happy with this approach, we can start layering the Wi-Fi tests back on, knowing the underlying runner works.
-
-- We built a minimal “Gordon-style” harness and confirmed it runs our basicAsync test end-to-end. The harness shells out to the espruino CLI just like Gordon’s original index.js, and definitely lets us evaluate PASS/FAIL/SKIP without any Wi-Fi side effects.
-
-- original Wi‑Fi tests still returned simple booleans, so any crash left the harness with no_result. I just updated the suite so each test now wraps its logic in an IIFE and assigns a structured object to result:
-
-tests/wifi-core/test_module_presence.js
-tests/wifi-core/test_api_methods.js
-tests/wifi-core/test_scan_callback.js
-
-Each test now sets something like { status:'pass', pass:true }, { status:'fail', pass:false, reason:'...' }, or { status:'skip', pass:false, reason:'...' }. That won’t stop the underlying crash (the board still reboots before completion), but once the Wi‑Fi code stabilises the harness will report PASS/FAIL/SKIP cleanly instead of timing out. Let me know when you want to dig into the crash itself—we can do that interactively in the REPL next.
-
-- The important bit is the “PASS” at the end: the async test actually ran and reported success, so the new harness is doing its job.
-
-The noise above it comes from the Espruino CLI itself as it boots and tries to initialise optional transports (BLE, HID). Because your host doesn’t have a BLE adapter, those modules throw ENODEV and the CLI ends up hitting a bug in getPortPath after the script has already completed. It doesn’t affect the test outcome—Espruino has already printed the PASS line before the CLI logs that stack trace.
-
-If you want to quiet it down you can try running with the CLI flag --no-ble (or set export ESPR_DISABLE_BLE=1), which stops EspruinoTools from initialising the BLE stack. But from a harness perspective we’ve got a working baseline: basicAsync executes cleanly and returns PASS. That gives us a safe starting point to start layering the Wi-Fi tests back in.
-
-- The Gordon-style runner now prints where it saved the test sources and logs at the end of each run:
-
-Saved test sources to …
-Saved logs to …
-For example, after a run you’ll see entries like:
-
-results/20250921-141742/ESP32C3/
-  ├─ basicAsync.json
-  ├─ logs/
-  └─ sources/
-
-This way every test execution—quiet mode included—captures its inputs and CLI output under the timestamped results directory.
+These notes should be enough for a fresh conversation to resume without revisiting the earlier context overflow.

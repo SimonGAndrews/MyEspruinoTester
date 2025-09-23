@@ -95,6 +95,34 @@ Common issues:
 
 ---
 
+## `scripts/run-tests-gordon.js`
+**Purpose:** Gordon-style runner that shells out to the Espruino CLI once per test file. Mirrors the original `index.js` flow for debugging suites against real hardware.
+
+Usage:
+```bash
+node scripts/run-tests-gordon.js --board ESP32C3 --port /dev/ttyACM0 --suites wifi-core --fixtures configs/lab.json
+```
+
+Options:
+- `--board`, `-b`: board manifest name (required).
+- `--port`, `-p`: serial device to open (required).
+- `--suites`, `-s`: comma-separated suites. Uses manifest defaults when omitted.
+- `--fixtures`, `-f`: optional JSON file injected as `global.ESPRUINO_WIFI_FIXTURES` before each test body.
+- `--quiet`, `-q`: suppress CLI stderr chatter while retaining captured logs.
+- `--help`, `-h`: show usage.
+
+Behaviour:
+- Wraps each test source with a lightweight harness that emits keep-alive heartbeats and prints a structured JSON result.
+- Writes original sources plus CLI stdout/stderr to `results/<timestamp>/<board>/`.
+- Aborts immediately with a helpful message if the serial device is busy (for example, when a REPL is already connected).
+
+Common issues:
+- `Error: device busy (is another REPL connected ...)`: close any Web IDE/terminal session that is holding the port and rerun.
+- `no_result`: indicates the test never set `result`; fix the test to assign a structured `{ status, pass, reason }` object.
+- CLI warnings about BLE/HID modules are benign when `--no-ble` is injected automatically by the runner.
+
+---
+
 ## `scripts/run-node-baseline.js`
 **Purpose:** Run suites locally under Node.js as a baseline comparison for pure JavaScript tests (no hardware).
 
