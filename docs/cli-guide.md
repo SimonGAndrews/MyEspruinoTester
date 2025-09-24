@@ -34,6 +34,14 @@ Output:
 Common issues:
 - `Error: board manifest not found`: check `boards/<name>.json` exists.
 - `Missing firmware artifacts`: ensure files under `firmware/<board>/<version>/` match manifest `artifacts` definitions.
+- Espruino CLI produces 'noise' when executing that is seen unless the cli is ececuted wit --quiet.   
+  - Deprecation warning – During startup the CLI loads WebRTC support (peerjs-on-node) and that dependency pulls in node-blob. Node 20 flags its legacy manifest (main: "server.js") as invalid, so you see the deprecation notice before every run. Nothing in our harness touched it; it comes from EspruinoTools/libs/webrtc-connection.js:88 which attempts the require("peerjs-on-node") and triggers Node’s warning.
+
+  - NODE_TLS_REJECT_UNAUTHORIZED message – The WebSocket relay disables TLS verification so it can talk to self-signed peers. That’s hard‑coded in EspruinoTools/core/serial_websocket_relay.js:18, so whenever the CLI initialises the relay stack you get the warning that the env var was forced to 0.
+
+  - “Module Wifi not found” banner – Before uploading code, the CLI parses the script and tries to cache every require(...). Because our board JSON doesn’t expose a built-in module list, the loader can’t tell that Wifi lives in firmware, so EspruinoTools/core/modules.js:207 logs Module Wifi not found. It’s just the module preloader grumbling; the upload still succeeds once the board provides the module at runtime.
+
+  - TypeError: Cannot read properties of undefined (reading 'type') – After each upload the CLI sets a 500 ms inactivity timer (EspruinoTools/bin/espruino-cli.js:543-604). When it fires, exitCallback is invoked without the object binding created in startConnect, so inside this.iterate (lines EspruinoTools/bin/espruino-cli.js:818-826) this becomes undefined. That turns the next call to getPortPath (line EspruinoTools/bin/espruino-cli.js:773) into getPortPath(undefined, …), which raises the stack trace. Our keep-alive prints keep reset that timer, so the tests finish before the buggy shutdown path runs, but the warning itself is entirely in the CLI.
 
 ---
 

@@ -174,7 +174,7 @@ async function run() {
     const timeoutMs = 10000; // 10 seconds is plenty for simple async tests
     const code = fs.readFileSync(test.path, 'utf8');
     const wrapped = wrapTestSource(test.id, code, timeoutMs, fixtureInjection);
-    fs.writeFileSync(path.join(sourcesDir, test.id), code);
+    fs.writeFileSync(path.join(sourcesDir, test.id), wrapped);
     process.stdout.write(`Running ${test.id} ... `);
     try {
       const result = await sendViaCLI(CLI, port, boardArg, wrapped, Boolean(args.quiet));

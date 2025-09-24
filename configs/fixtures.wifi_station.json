@@ -1,7 +1,7 @@
 {
   "wifi": {
-    "ssid": "BT-GZAH5J",
-    "password": "Qvm3HbnRVYAYQt",
+    "ssid": "SHED",
+    "password": "MyGreatShed",
     "timeout": 25000,
     "hostname": "espruino-tester"
   },
