@@ -231,6 +231,45 @@ Important reminders for async tests:
 3. **Clean up:** Disconnect from Wi-Fi, remove event listeners, and clear timers inside your own success/failure paths.
 4. **Timeouts:** If your async flow might hang, add your own `setTimeout` failsafe so the test doesn’t wait forever.
 
+Example with a manual timeout guard:
+
+```javascript
+(function(){
+  try {
+    var fixtures = global.ESPRUINO_WIFI_FIXTURES || {};
+    var wifiCfg = fixtures.wifi;
+    if (!wifiCfg) {
+      result = { status: 'skip', pass: false, reason: 'no fixtures.wifi block' };
+      return;
+    }
+
+    var wifi = require('Wifi');
+    var finished = false;
+    var guard = setTimeout(function(){
+      if (finished) return;
+      finished = true;
+      try { wifi.disconnect(); } catch (e) {}
+      result = { status: 'fail', pass: false, reason: 'connect callback never fired' };
+    }, 20000);
+
+    wifi.connect(wifiCfg.ssid, { password: wifiCfg.password }, function(err) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(guard);
+      if (err) {
+        result = { status: 'fail', pass: false, reason: 'wifi.connect error: ' + err };
+        return;
+      }
+      result = { status: 'pass', pass: true };
+    });
+  } catch (e) {
+    result = { status: 'fail', pass: false, reason: 'Test threw: ' + ((e && e.message) || e) };
+  }
+})();
+```
+
+If the callback never fires we clean up and report a failure, otherwise the guard is cleared as soon as the connection succeeds.
+
 ---
 
 ## 6. Debugging Tips
