@@ -42,7 +42,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.log(`Usage: node scripts/run-tests-gordon.js --board <name> --port <tty> [--suites suite1,suite2]\n`);
+  console.log(`Usage: node scripts/run-tests-gordon.js --board <name> --port <tty> [--suites suite1,suite2] [--pre-cli-delay <ms>] [--post-cli-delay <ms>]\n`);
 }
 
 function wrapTestSource(fileId, src, timeoutMs, contextInjection) {
@@ -108,6 +108,19 @@ async function run() {
   const board = args.board || args._[0];
   if (!board) { console.error('Error: --board <name> is required'); usage(); process.exit(1); }
 
+  const parseDelay = (value, fallback) => {
+    if (value === undefined || value === true) return fallback;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      console.error(`Error: delay values must be non-negative numbers (received ${value})`);
+      process.exit(1);
+    }
+    return parsed;
+  };
+
+  const preCliDelayMs = parseDelay(args['pre-cli-delay'], 1000);
+  const postCliDelayMs = parseDelay(args['post-cli-delay'], 1000);
+
   let fixtureInjection = '';
   if (args.fixtures) {
     if (typeof args.fixtures !== 'string') {
@@ -163,6 +176,7 @@ async function run() {
   console.log(`Port:     ${port}`);
   console.log(`Suites:   ${suitesInfo.requested.join(', ')}`);
   console.log(`Tests:    ${tests.map(t=>t.id).join(', ')}`);
+  console.log(`Delays:   pre-cli ${preCliDelayMs}ms, post-cli ${postCliDelayMs}ms`);
 
   const CLI = process.env.ESPRUINO_CLI || 'espruino';
   const boardArg = manifest.board || (manifest.upstream && manifest.upstream.id) || board;
@@ -177,7 +191,7 @@ async function run() {
     fs.writeFileSync(path.join(sourcesDir, test.id), wrapped);
     process.stdout.write(`Running ${test.id} ... `);
     try {
-      const result = await sendViaCLI(CLI, port, boardArg, wrapped, Boolean(args.quiet));
+      const result = await sendViaCLI(CLI, port, boardArg, wrapped, Boolean(args.quiet), { preDelayMs: preCliDelayMs, postDelayMs: postCliDelayMs });
       const suiteSummary = bySuite[test.suite] = bySuite[test.suite] || { tests: [], pass:0, fail:0, skip:0 };
       suiteSummary.tests.push({ file: test.id, status: result.status, pass: result.pass, reason: result.reason, duration_ms: result.duration_ms });
       fs.writeFileSync(path.join(logsDir, `${test.id}.stdout`), result.stdout || '');
@@ -226,7 +240,8 @@ async function run() {
   process.exit(failCount ? 1 : 0);
 }
 
-function sendViaCLI(cli, port, boardArg, code, quiet) {
+function sendViaCLI(cli, port, boardArg, code, quiet, delayOptions = {}) {
+  const { preDelayMs = 0, postDelayMs = 0 } = delayOptions;
   return new Promise((resolve, reject) => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'espruino-gordon-'));
     const tempFile = path.join(tempDir, 'test.js');
@@ -236,44 +251,62 @@ function sendViaCLI(cli, port, boardArg, code, quiet) {
     if (boardArg) args.push('--board', boardArg);
     args.push(tempFile);
 
-    const child = spawn(cli, args, { stdio: ['ignore','pipe','pipe'] });
-    let stdout=''; let stderr='';
-    child.stdout.on('data', d=>{ stdout += d.toString(); });
-    child.stderr.on('data', d=>{ stderr += d.toString(); if (!quiet) process.stderr.write(d.toString()); });
-    child.on('error', err => { fs.rmSync(tempDir, { recursive: true, force: true }); reject(err); });
-    child.on('close', () => {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-      const combined = `${stdout}\n${stderr}`;
-      if (/device or resource busy/i.test(combined) || /cannot open \/dev\//i.test(combined)) {
-        const err = new Error('device_busy');
-        err.stdout = stdout;
-        err.stderr = stderr;
-        err.deviceBusy = true;
-        return reject(err);
-      }
-      const match = stdout.split(/\r?\n/).filter(l=>l.includes('__espruino_test__')).pop();
-      if (!match) {
-        const err = new Error('no_result');
-        err.stdout = stdout; err.stderr = stderr;
-        return reject(err);
-      }
-      try {
-        const json = JSON.parse(match.slice(match.indexOf('{')));
-        resolve({
-          file: json.file,
-          status: json.status || (json.pass ? 'pass' : 'fail'),
-          pass: !!json.pass,
-          reason: json.reason || null,
-          duration_ms: json.duration_ms || null,
-          stdout,
-          stderr
-        });
-      } catch (e) {
-        const err = new Error('invalid_result_json');
-        err.stdout = stdout; err.stderr = stderr;
-        reject(err);
-      }
-    });
+    const launch = () => {
+      const child = spawn(cli, args, { stdio: ['ignore','pipe','pipe'] });
+      let stdout=''; let stderr='';
+      let settled = false;
+
+      const finish = handler => {
+        if (settled) return;
+        settled = true;
+        if (postDelayMs > 0) return setTimeout(handler, postDelayMs);
+        handler();
+      };
+
+      child.stdout.on('data', d=>{ stdout += d.toString(); });
+      child.stderr.on('data', d=>{ stderr += d.toString(); if (!quiet) process.stderr.write(d.toString()); });
+      child.on('error', err => {
+        if (!settled) fs.rmSync(tempDir, { recursive: true, force: true });
+        finish(() => reject(err));
+      });
+      child.on('close', () => {
+        if (settled) return;
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        const combined = `${stdout}\n${stderr}`;
+        if (/device or resource busy/i.test(combined) || /cannot open \/dev\//i.test(combined)) {
+          const err = new Error('device_busy');
+          err.stdout = stdout;
+          err.stderr = stderr;
+          err.deviceBusy = true;
+          return finish(() => reject(err));
+        }
+        const match = stdout.split(/\r?\n/).filter(l=>l.includes('__espruino_test__')).pop();
+        if (!match) {
+          const err = new Error('no_result');
+          err.stdout = stdout; err.stderr = stderr;
+          return finish(() => reject(err));
+        }
+        try {
+          const json = JSON.parse(match.slice(match.indexOf('{')));
+          finish(() => resolve({
+            file: json.file,
+            status: json.status || (json.pass ? 'pass' : 'fail'),
+            pass: !!json.pass,
+            reason: json.reason || null,
+            duration_ms: json.duration_ms || null,
+            stdout,
+            stderr
+          }));
+        } catch (e) {
+          const err = new Error('invalid_result_json');
+          err.stdout = stdout; err.stderr = stderr;
+          finish(() => reject(err));
+        }
+      });
+    };
+
+    if (preDelayMs > 0) setTimeout(launch, preDelayMs);
+    else launch();
   });
 }
 
