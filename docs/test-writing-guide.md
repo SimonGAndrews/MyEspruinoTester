@@ -130,13 +130,74 @@ This wrapped version is what now gets stored under `results/.../sources/`—you 
 
 ---
 
-## 3. Why the Keep-Alive Exists
+## 3. Fixtures: defining and using shared data
+
+Wi-Fi tests often need credentials, hostnames, or timing tweaks that shouldn’t be hard-coded in source control. The harness reads fixture files (simple JSON) and injects them before each test runs.
+
+### 3.1 Defining fixture data
+
+Create a JSON file under `configs/` with whatever structure your tests expect. For example, `configs/fixtures.wifi_station.json` contains:
+
+```json
+{
+  "wifi": {
+    "ssid": "SHED",
+    "password": "MyGreatShed",
+    "timeout": 25000,
+    "hostname": "espruino-tester"
+  },
+  "wifi_invalid": {
+    "enabled": false,
+    "ssid": "SHED",
+    "password": "WRONG",
+    "timeout": 12000
+  }
+}
+```
+
+You can keep multiple fixture files (lab, home, CI) and select the one you want on the command line.
+
+### 3.2 Loading fixtures in the Gordon runner
+
+When you run the harness with `--fixtures configs/fixtures.wifi_station.json`, `scripts/run-tests-gordon.js` parses the JSON once and injects it before every test body:
+
+```javascript
+const fixtures = JSON.parse(fs.readFileSync(fixturesPath, 'utf8'));
+fixtureInjection = `global.ESPRUINO_WIFI_FIXTURES = ${JSON.stringify(fixtures)};`;
+```
+
+That snippet becomes part of the wrapped source (see section 2). In the saved copy under `results/.../sources/` you’ll see a line such as:
+
+```javascript
+global.ESPRUINO_WIFI_FIXTURES = {"wifi":{"ssid":"SHED","password":"MyGreatShed","timeout":25000,"hostname":"espruino-tester"},"wifi_invalid":{"enabled":false,"ssid":"SHED","password":"WRONG","timeout":12000}};
+```
+
+### 3.3 Using fixtures inside a test
+
+Tests read the data at runtime. For example, `tests/wifi-station/test_connect_get_ip.js` begins with:
+
+```javascript
+var fixtures = global.ESPRUINO_WIFI_FIXTURES || {};
+var wifiCfg = fixtures.wifi;
+if (!wifiCfg || !wifiCfg.ssid || !wifiCfg.password) {
+  result = { status: 'skip', pass: false, reason: 'wifi-station skipped (fixtures.wifi not provided)' };
+  return;
+}
+```
+
+Because the runner injected the JSON before the test executes, `global.ESPRUINO_WIFI_FIXTURES` already holds the right values. Tests can also check optional blocks (`fixtures.wifi_invalid`, `fixtures.http`, etc.) and skip themselves cleanly when data is missing.
+
+This injection happens in both the Gordon runner and the richer `scripts/run-tests.js`, so the same fixture files work for every harness.
+
+---
+
+## 4. Why the Keep-Alive Exists
 
 Some tests wait on Wi-Fi events that can take seconds. The Espruino CLI automatically closes the serial port after ~500 ms of silence. By printing a small heartbeat JSON every 250 ms, the runner keeps the connection open until your test sets `result`. Once `result` is defined, the heartbeat stops and the final JSON payload is printed.
 
 ---
 
-## 4. Writing Asynchronous Tests
+## 5. Writing Asynchronous Tests
 
 Synchronous tests finish inside a single IIFE. Asynchronous tests (connecting to Wi-Fi, waiting for callbacks, etc.) still use the same pattern—they just set `result` later. A simplified example:
 
@@ -172,7 +233,7 @@ Important reminders for async tests:
 
 ---
 
-## 5. Debugging Tips
+## 6. Debugging Tips
 
 - The wrapped sources saved by the runner are ideal for REPL reproduction. Paste the entire file into the Web IDE to mimic harness behaviour.
 - Look in `results/<timestamp>/<board>/logs/` for the raw stdout/stderr captured from each run.
