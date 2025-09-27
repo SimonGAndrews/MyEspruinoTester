@@ -10,6 +10,8 @@ const { spawn } = require('child_process');
 const { REPO_ROOT, loadManifest, resolveSuites } = require('../lib/manifest');
 const { resolveSuiteTests } = require('../lib/tests');
 
+let disableResetFlag = false;
+
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 2; i < argv.length; i++) {
@@ -42,7 +44,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.log(`Usage: node scripts/run-tests-gordon.js --board <name> --port <tty> [--suites suite1,suite2] [--pre-cli-delay <ms>] [--post-cli-delay <ms>]\n`);
+  console.log(`Usage: node scripts/run-tests-gordon.js --board <name> --port <tty> [--suites suite1,suite2] [--fixtures path] [--no-reset] [--pre-cli-delay <ms>] [--post-cli-delay <ms>]\n`);
 }
 
 function wrapTestSource(fileId, src, timeoutMs, contextInjection) {
@@ -120,6 +122,7 @@ async function run() {
 
   const preCliDelayMs = parseDelay(args['pre-cli-delay'], 1000);
   const postCliDelayMs = parseDelay(args['post-cli-delay'], 1000);
+  disableResetFlag = Boolean(args['no-reset']);
 
   let fixtureInjection = '';
   if (args.fixtures) {
@@ -248,6 +251,9 @@ function sendViaCLI(cli, port, boardArg, code, quiet, delayOptions = {}) {
     fs.writeFileSync(tempFile, code);
 
     const args = ['--port', port, '--no-ble'];
+    if (disableResetFlag) {
+      args.push('--config', 'RESET_BEFORE_SEND=false');
+    }
     if (boardArg) args.push('--board', boardArg);
     args.push(tempFile);
 

@@ -8,7 +8,7 @@
 ## Runner Landscape
 | Script | Purpose | Recent Updates |
 | --- | --- | --- |
-| `scripts/run-tests-gordon.js` | Shell-out harness matching Gordon Williams’ original flow. | Injects fixtures ahead of every test, prints keep-alive heartbeats, aborts when the port is busy, and now honours an optional `--no-reset` flag that disables the CLI’s pre-upload reset (`--config RESET_BEFORE_SEND=false`). A one-time fixture upload was trialled but reverted because the CLI reset cleared the globals. |
+| `scripts/run-tests-gordon.js` | Shell-out harness matching Gordon Williams’ original flow. | Now accepts `--fixtures`, injects `global.ESPRUINO_WIFI_FIXTURES`, keeps serial sessions alive with heartbeats, and aborts early when the port is already in use. Logs and wrapped sources land under `results/<timestamp>/<board>/`. |
 | `scripts/run-tests.js` | Feature-rich harness with manifest awareness. | Fixtures flag added earlier in the project; station timeout bumped to 30 s. Continues to run in parallel while we evaluate the Gordon baseline. |
 
 When the serial port is busy the Gordon runner now exits with:
@@ -43,22 +43,10 @@ All Wi-Fi tests now emit structured `{ status, pass, reason }` results so the ne
 2. **Capturing logs**: check `results/<timestamp>/<board>/logs/*.stdout` and `.stderr` for the raw Espruino CLI output; `sources/` houses the unwrapped test code for each run.
 3. **Updating suites**: add files under `tests/<suite>/test_*.js`; discovery filters out any other prefix.
 
-## Current Debug Focus – `FIFO_FULL`
-- Intermittent `FIFO_FULL` errors occur during upload, before tests print keep-alives. They correspond to Espruino’s receive FIFO overflowing while the CLI streams the wrapped script.
-- Recent runs:
-  - `test_event_callbacks.js` and `test_scan_for_fixture.js` now succeed consistently (no FIFO overflow).
-  - `test_connect_get_ip.js` passes intermittently; when it fails the CLI reported FIFO_FULL immediately after the prompt.
-  - `test_dhcp_timeout_event.js` remains the most frequent failure (still seeing FIFO_FULL).
-  - `test_auth_failure_events.js` skips whenever `fixtures.wifi_invalid.enabled` is `false` (expected).
-- Experiments so far:
-  - Injecting fixtures once per run reduced the upload size but clashed with the CLI reset (globals were lost). Reverted to per-test injection.
-  - Added `--no-reset` flag to skip the CLI’s pre-upload reset; needs evaluation with a clean board (disconnect Wi-Fi / power-cycle first).
-  - Pre/post CLI delays remain at 1000 ms to give the device time between uploads.
-
 ## Next Steps (handoff for new thread)
-- Compare wifi-station runs with and without `--no-reset` to confirm whether the CLI reset is triggering FIFO overflows.
-- If FIFO persists even without resets, consider longer delays and/or trimming the wrapped payload (e.g., stripping comments, reducing heartbeat frequency) to reduce burst size.
-- Instrument the failing tests (`test_connect_get_ip.js`, `test_dhcp_timeout_event.js`) with additional logging to see whether partial uploads occur before FIFO_FULL.
-- Once uploads are stable, re-enable deeper Wi-Fi scenarios (save/restore, HTTP reachability) and revisit CLI noise suppression.
+- Re-enable Wi-Fi connection tests end-to-end using lab fixtures; focus on stability of `test_connect_get_ip.js` and ensure `wifi.getIP()` reports non-zero addresses.
+- Expand `wifi-event` coverage to include reconnect loops once we stabilise the connection path.
+- Port HTTP/WebSocket fixture endpoints into the Gordon runner (fixtures injection already in place).
+- Investigate reducing CLI noise (BLE warnings) once functional coverage is stable.
 
 These notes should be enough for a fresh conversation to resume without revisiting the earlier context overflow.

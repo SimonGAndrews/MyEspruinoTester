@@ -10,30 +10,33 @@
     var stage = 'init';
     var removeListenerFn = null;
 
-    function removeListener(evt, handler) {
+    // FIXED: function expression instead of function declaration
+    var removeListener = function(evt, handler) {
       if (!wifi || !removeListenerFn) return;
       try {
         if (removeListenerFn.length === 2) removeListenerFn(evt, handler);
         else removeListenerFn(evt);
       } catch (e) {}
-    }
+    };
 
-    function cleanup() {
+    // FIXED: function expression (avoid block-scoped function declaration)
+    var cleanup = function() {
       for (var i = watchers.length - 1; i >= 0; i--) {
         var pair = watchers[i];
         removeListener(pair[0], pair[1]);
         watchers.splice(i, 1);
       }
       try { wifi && wifi.disconnect(); } catch (e) {}
-    }
+    };
 
-    function finish(status, pass, reason) {
+    // FIXED: function expression
+    var finish = function(status, pass, reason) {
       if (finished) return;
       finished = true;
       if (timer) clearTimeout(timer);
       cleanup();
       result = { status: status, pass: !!pass, reason: reason || null };
-    }
+    };
 
     if (!wifiCfg || !wifiCfg.ssid || !wifiCfg.password) {
       finish('skip', false, 'wifi-station events skipped (fixtures.wifi not provided)');
@@ -66,14 +69,16 @@
       var disconnectDelay = wifiCfg.disconnectDelayMs || 2000;
       timer = setTimeout(function(){ finish('fail', false, 'event callbacks timeout'); }, connectTimeout + disconnectDelay + 10000);
 
-      function addListener(evt, fn) {
+      // FIXED: function expression
+      var addListener = function(evt, fn) {
         wifi.on(evt, fn);
         watchers.push([evt, fn]);
-      }
+      };
 
-      function checkComplete() {
+      // FIXED: function expression
+      var checkComplete = function() {
         if (sawConnected && sawDisconnected && connectCallbackFired) finish('pass', true);
-      }
+      };
 
       stage = 'registerHandlers';
       addListener('connected', function() {

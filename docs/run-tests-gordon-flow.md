@@ -17,7 +17,7 @@ flowchart TD
     K --> L[Save wrapped source]
     L --> M[Send code via Espruino CLI]
     M --> N{CLI result line found?}
-    N -- No --> R[Mark test failed (no result)]
+    N -- No --> R["Mark test failed (no result)"]
     N -- Yes --> O[Parse JSON result]
     O --> P[Record pass/fail/skip and logs]
     R --> P
