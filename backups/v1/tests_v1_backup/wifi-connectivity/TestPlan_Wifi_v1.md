@@ -95,7 +95,7 @@ Describe the Wi-Fi features exercised by the test suite. Each area lists the key
 - ESP32 Wi-Fi wrappers: `libs/network/esp32/jswrap_esp32_network.c`, `network_esp32.c`
 - Upstream tests: https://github.com/espruino/Espruino/tree/master/targets/esp32/tests
 - Espruino `Wifi` module docs: https://www.espruino.com/module/Wifi
-- CLI guide: `docs/cli-guide.md`
+- CLI guide: `docs/test-runner-cli-guide.md`
 - Manifest reference: `docs/manifest-reference.md`
 
 
@@ -138,7 +138,7 @@ Once suites are stable, extend run-node-baseline.js or add a new command that co
 
 ### Documentation updates
 
-In docs/cli-guide.md, describe running the new suites, fixture usage, and sample configs.
+In docs/test-runner-cli-guide.md, describe running the new suites, fixture usage, and sample configs.
 In TestPlan_Wifi.md, link each suite section to the actual test files as you implement them.
 
 ### Prioritize the first suite
