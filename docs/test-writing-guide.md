@@ -272,7 +272,89 @@ If the callback never fires we clean up and report a failure, otherwise the guar
 
 ---
 
-## 6. Debugging Tips
+## 6. Per-Test Metadata Hints
+
+Some tests need the Espruino CLI to behave differently (upload to Storage, skip resets, stretch the port delays, etc.). You can request those tweaks without touching the runner by placing a single JSON block at the very top of the test file:
+
+```javascript
+/*JSON{
+  "saveOnSend": "storage",
+  "storageTarget": "wifi-tests/test_event_callbacks.js",
+  "preUploadDelayMs": 1500,
+  "postUploadDelayMs": 2000,
+  "noReset": true,
+  "timeoutMs": 20000,
+  "cliArgs": ["--sleep", "1"],
+  "espruinoConfig": { "LOAD_STORAGE_FILE": 2 }
+}*/
+```
+
+Guidelines:
+
+- The comment must appear before any other code (whitespace is fine). Use strict JSON: double quotes, commas between fields, and no trailing commas.
+- The runner understands every key listed in the table below; any unrecognised key is silently ignored (but a typo usually means your change has no effect).
+- All numeric knobs accept non-negative numbers. Anything else causes the runner to fail the test before it touches the device, so mistakes are caught early.
+
+| Key | Type | Accepted values | Effect | Default |
+| --- | --- | --- | --- | --- |
+| `saveOnSend` | number / string / boolean | Numbers are passed straight through (`0` = RAM, `1` = flash boot, `2` = flash persistent, `3` = Storage). Strings are matched case-insensitively against `ram`, `flash`, `flashPersistent`, `flashBoot`, `storage`, or any numeric string. `true` maps to `1`, `false` to `0`. | Overrides `Espruino.Config.SAVE_ON_SEND` for this upload. | Not set (runner leaves the CLI default alone). |
+| `storageTarget` | string | Any non-empty Storage filename. Must be ≤28 chars to satisfy Storage limits. | Sets `SAVE_STORAGE_FILE` when `saveOnSend` resolves to Storage. The runner raises an error if you supply a target without also selecting Storage. | Not set. |
+| `preUploadDelayMs` | number | Non-negative integer. | The harness waits this many milliseconds *after* launching the Espruino CLI process but *before* it sends your test payload. Skipped automatically if `storagePreload` already exercised the CLI. | Inherits global `--pre-cli-delay` (default 1000 ms). |
+| `postUploadDelayMs` | number | Non-negative integer. | The harness pauses this long *after* the CLI finishes uploading but *before* it reads the device output and checks results. Applies to both the preload and main upload stages. | Inherits global `--post-cli-delay` (default 1000 ms). |
+| `timeoutMs` | number | Non-negative integer. | Changes how long the harness' 50 ms wait-loop keeps polling for `result` before it labels the run a timeout. | 10 000 ms. |
+| `noReset` | boolean | `true` or `false`. | When `true`, the runner adds `--config RESET_BEFORE_SEND=false` for this test only. | `false` unless `--no-reset` was passed globally. |
+| `cliArgs` | array of strings | Each array element is forwarded verbatim; use one token per flag/value. | Adds extra command-line arguments to the CLI invocation(s). Useful for ad-hoc flags such as `--sleep 1`. | `[]`. |
+| `espruinoConfig` | object | Arbitrary key/value pairs. Values are JSON-encoded so you can send numbers, booleans, strings, or nested objects. | Converts to multiple `--config KEY=VALUE` CLI flags before the upload. | `{}`. |
+| `storagePreload` | object or array of objects | Each entry must contain `filename` plus either literal `contents` (a string) or `sourceFile` (path relative to the test file or absolute). | Triggers an additional CLI run *before* the test upload. The runner writes your payload into Storage using `--storage` arguments, records the CLI stdout/stderr under `<test>.storage.*`, and then runs the main test. | Not set; no preload. |
+
+### Save on Send targets in plain language
+
+If you are not familiar with the Espruino CLI options, think of `saveOnSend` as telling the device where to store the code you upload:
+
+- `0` / `"ram"` — keep code only in RAM. It runs immediately but disappears after reset.
+- `1` / `"flashBoot"` — write to flash so the code runs automatically on boot, but it overwrites the boot slot.
+- `2` / `"flashPersistent"` — store in flash and keep existing boot code. Useful when you want the test to survive soft resets without touching the primary boot program.
+- `3` / `"storage"` — upload straight into Espruino Storage. Combine this with `storageTarget` to pick the filename the test should read later.
+
+Pick the lowest option that matches your goal: RAM for temporary experiments, flash boot when you want to replace the startup script, flash persistent for longer-lived helpers, and Storage when a test needs supporting files.
+
+### Example: `espruinoConfig` hint
+
+`espruinoConfig` mirrors the `--config KEY=VALUE` flags you would normally pass on the CLI. For example, to slow down uploads and disable echoes without remembering the CLI syntax, add this JSON block at the top of your test:
+
+```javascript
+/*JSON{
+  "espruinoConfig": {
+    "SERIAL_THROTTLE_SEND": true,
+    "SERIAL_THROTTLE_WAIT": 50,
+    "BOARD_JSON": "/absolute/path/to/custom_board.json"
+  }
+}*/
+```
+
+The runner converts those entries into `--config SERIAL_THROTTLE_SEND=true --config SERIAL_THROTTLE_WAIT=50 --config BOARD_JSON=/absolute/path/to/custom_board.json` when it launches the Espruino CLI, so you can keep the settings close to the test without memorising the command-line switches.
+
+### Harness wait-loop limit
+
+The Gordon harness watches for `result` in a 50 ms polling loop (the `wait()` helper described earlier). `timeoutMs` just expands or shrinks the maximum time spent in that loop. The wait sits between the moment the wrapper finishes uploading your code and the moment it sees `result` become defined, so raise it for long-running async flows and lower it when you want fast-failing smoke tests.
+
+### When to reach for `storagePreload`
+
+`storagePreload` is handy whenever a test needs extra files in Espruino Storage before the main script runs—for example HTML fixtures, certificate bundles, or helper modules that your test loads with `require("Storage").read(...)`. The harness performs a lightweight “preload” CLI run that only writes those files, then performs the normal upload. Use this when:
+
+- Your test depends on multiple Storage files and you want to populate them from checked-in sources.
+- You need deterministic device state (for example, seeded data logs) without embedding everything inline in the test body.
+- You want to reuse the same preloaded assets across several tests without duplicating code.
+
+If a test does not touch Storage, leave `storagePreload` out so the harness only runs the CLI once.
+
+When `storagePreload` is present the runner shells out to the CLI twice. The first run writes the requested Storage files (by uploading a tiny stub and the `--storage` arguments you described), and the second run uploads the wrapped test itself. The helper captures any output from the preload pass into `<test>.storage.stdout`/`.storage.stderr` so you can review what happened on-device.
+
+Invalid metadata causes the runner to mark the test as failed and prints the validation error, so mistakes are visible immediately. The comment stays in the wrapped source saved under `results/.../sources/`, which means you can paste the exported file into the REPL and reproduce the exact upload behaviour.
+
+---
+
+## 7. Debugging Tips
 
 - The wrapped sources saved by the runner are ideal for REPL reproduction. Paste the entire file into the Web IDE to mimic harness behaviour.
 - Look in `results/<timestamp>/<board>/logs/` for the raw stdout/stderr captured from each run.

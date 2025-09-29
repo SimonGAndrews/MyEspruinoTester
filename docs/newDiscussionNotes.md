@@ -44,6 +44,7 @@ All Wi-Fi tests now emit structured `{ status, pass, reason }` results so the ne
 3. **Updating suites**: add files under `tests/<suite>/test_*.js`; discovery filters out any other prefix.
 
 ## Current Debug Focus – `FIFO_FULL`
+- Branch context: work continues on `SGA_V3` (forked from `SGA_V02` with an initial empty commit for traceability).
 - Intermittent `FIFO_FULL` errors occur during upload, before tests print keep-alives. They correspond to Espruino’s receive FIFO overflowing while the CLI streams the wrapped script.
 - Recent runs:
   - `test_event_callbacks.js` and `test_scan_for_fixture.js` now succeed consistently (no FIFO overflow).
@@ -52,13 +53,14 @@ All Wi-Fi tests now emit structured `{ status, pass, reason }` results so the ne
   - `test_auth_failure_events.js` skips whenever `fixtures.wifi_invalid.enabled` is `false` (expected).
 - Experiments so far:
   - Injecting fixtures once per run reduced the upload size but clashed with the CLI reset (globals were lost). Reverted to per-test injection.
-  - Added `--no-reset` flag to skip the CLI’s pre-upload reset; needs evaluation with a clean board (disconnect Wi-Fi / power-cycle first).
+  - Added `--no-reset` flag to skip the CLI’s pre-upload reset; early runs indicate it needs a clean board (disconnect Wi-Fi / power-cycle first). Regression fixed (`disableReset` renamed to a module-level flag) so tests no longer throw “disableReset is not defined”.
   - Pre/post CLI delays remain at 1000 ms to give the device time between uploads.
 
 ## Next Steps (handoff for new thread)
-- Compare wifi-station runs with and without `--no-reset` to confirm whether the CLI reset is triggering FIFO overflows.
+- Compare wifi-station runs with and without `--no-reset` to confirm whether the CLI reset is triggering FIFO overflows (remember to disconnect any REPL/Web IDE before testing).
 - If FIFO persists even without resets, consider longer delays and/or trimming the wrapped payload (e.g., stripping comments, reducing heartbeat frequency) to reduce burst size.
 - Instrument the failing tests (`test_connect_get_ip.js`, `test_dhcp_timeout_event.js`) with additional logging to see whether partial uploads occur before FIFO_FULL.
 - Once uploads are stable, re-enable deeper Wi-Fi scenarios (save/restore, HTTP reachability) and revisit CLI noise suppression.
+- Added `runner-metadata` smoke suite with two tests to exercise per-test `saveOnSend` and the new `storagePreload` metadata hook (see `tests/runner-metadata`). Useful for validating runner behaviour without tying up Wi-Fi fixtures. The storage preload helper shells the CLI twice; the second run still emits the long-standing EspruinoTools `TypeError: Cannot read properties of undefined (reading 'type')` on exit, but the runner captures it in `.storage.stderr` and treats it as benign.
 
 These notes should be enough for a fresh conversation to resume without revisiting the earlier context overflow.
