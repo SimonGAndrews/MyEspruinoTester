@@ -2,7 +2,7 @@
 
 ## Context
 - Goal: converge the ESP32 Wi-Fi test harness on the original Gordon-style CLI workflow while modernising the suites described in `docs/TestPlan_Wifi.md`.
-- Active tooling references: `docs/baseline-requirements.md`, `docs/cli-guide.md`, `docs/manifest-reference.md`, and the multi-suite plan in `docs/TestPlan_Wifi.md`.
+- Active tooling references: `docs/baseline-requirements.md`, `docs/test-runner-cli-guide.md`, `docs/manifest-reference.md`, and the multi-suite plan in `docs/TestPlan_Wifi.md`.
 - Current branch: `SGA_V02` (mirrored upstream).
 
 ## Runner Landscape

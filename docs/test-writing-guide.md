@@ -359,5 +359,6 @@ Invalid metadata causes the runner to mark the test as failed and prints the val
 - The wrapped sources saved by the runner are ideal for REPL reproduction. Paste the entire file into the Web IDE to mimic harness behaviour.
 - Look in `results/<timestamp>/<board>/logs/` for the raw stdout/stderr captured from each run.
 - Tests skip cleanly when required fixtures or optional APIs are missing, so you can iterate without rewiring every test.
+- If the CLI reports errors about missing board JSON (for example when using community boards), generate the JSON from the firmware repo with `python scripts/build_board_json.py boards/MYBOARD.py > MYBOARD.json` and pass it to the harness with `--board boards/MYBOARD.json`. Without the JSON the CLI cannot determine Storage layout or firmware offsets, and uploads will fail before your test runs.
 
 With these building blocks you can author new tests, understand how the runner evaluates them, and debug the wrapped payload when something behaves unexpectedly.
