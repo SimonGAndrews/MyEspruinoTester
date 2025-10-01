@@ -12,6 +12,145 @@ const { resolveSuiteTests } = require('../lib/tests');
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
+function relativeToRepo(filePath) {
+  if (!filePath) return null;
+  const relative = path.relative(REPO_ROOT, filePath);
+  return relative.startsWith('..') ? filePath : (relative || '.');
+}
+
+function summariseStoragePreload(items) {
+  if (!Array.isArray(items) || !items.length) return undefined;
+  return items.map(item => {
+    const summary = { filename: item.filename };
+    if (item.sourceFile) summary.source_file = relativeToRepo(item.sourceFile);
+    if (typeof item.contents === 'string') summary.inline_bytes = Buffer.byteLength(item.contents, 'utf8');
+    return summary;
+  });
+}
+
+function summariseHarnessOptions(options = {}) {
+  const summary = {
+    timeout_ms: options.timeoutMs,
+    pre_delay_ms: options.preDelayMs,
+    post_delay_ms: options.postDelayMs,
+    no_reset: !!options.noReset,
+  };
+  if (options.saveOnSend !== undefined) summary.save_on_send = options.saveOnSend;
+  if (options.storageTarget) summary.storage_target = options.storageTarget;
+  if (Array.isArray(options.cliArgs) && options.cliArgs.length) summary.cli_args = options.cliArgs.slice();
+  if (Array.isArray(options.espruinoConfig) && options.espruinoConfig.length) {
+    summary.espruino_config = options.espruinoConfig.map(entry => ({ key: entry.key, value: entry.value }));
+  }
+  const storageSummary = summariseStoragePreload(options.storagePreload);
+  if (storageSummary) summary.storage_preload = storageSummary;
+  return summary;
+}
+
+function sanitiseMetadataSnapshot(metadata) {
+  if (!metadata || typeof metadata !== 'object') return undefined;
+  if (Array.isArray(metadata)) return metadata.map(sanitiseMetadataSnapshot);
+  const snapshot = {};
+  Object.entries(metadata).forEach(([key, value]) => {
+    if (key === 'contents' && typeof value === 'string') {
+      snapshot[key] = { inline_bytes: Buffer.byteLength(value, 'utf8') };
+    } else if (value && typeof value === 'object') {
+      snapshot[key] = sanitiseMetadataSnapshot(value);
+    } else {
+      snapshot[key] = value;
+    }
+  });
+  return snapshot;
+}
+
+function buildArtifactsSummary(testId, sourcesDir, logsDir) {
+  const artifacts = {};
+  const wrappedPath = path.join(sourcesDir, testId);
+  if (fs.existsSync(wrappedPath)) artifacts.wrapped_source = relativeToRepo(wrappedPath);
+  const stdoutPath = path.join(logsDir, `${testId}.stdout`);
+  if (fs.existsSync(stdoutPath)) artifacts.stdout = relativeToRepo(stdoutPath);
+  const stderrPath = path.join(logsDir, `${testId}.stderr`);
+  if (fs.existsSync(stderrPath)) artifacts.stderr = relativeToRepo(stderrPath);
+  const storageStdoutPath = path.join(logsDir, `${testId}.storage.stdout`);
+  if (fs.existsSync(storageStdoutPath)) artifacts.storage_stdout = relativeToRepo(storageStdoutPath);
+  const storageStderrPath = path.join(logsDir, `${testId}.storage.stderr`);
+  if (fs.existsSync(storageStderrPath)) artifacts.storage_stderr = relativeToRepo(storageStderrPath);
+  return Object.keys(artifacts).length ? artifacts : undefined;
+}
+
+function summariseError(error) {
+  if (!error) return undefined;
+  const summary = {
+    message: error.message || String(error),
+  };
+  if (error.code) summary.code = error.code;
+  if (error.deviceBusy) summary.device_busy = true;
+  if (error.stack) summary.stack = error.stack;
+  return summary;
+}
+
+function writePerTestRecord({
+  baseDir,
+  board,
+  port,
+  manifestPath,
+  stamp,
+  suiteName,
+  test,
+  startedAt,
+  hostDurationMs,
+  perTestOptions,
+  metadataHints,
+  resultSummary,
+  sourcesDir,
+  logsDir,
+  cliCommands = {},
+  error,
+}) {
+  const suiteDir = path.join(baseDir, suiteName);
+  fs.mkdirSync(suiteDir, { recursive: true });
+  const record = {
+    board,
+    port,
+    manifest: relativeToRepo(manifestPath),
+    suite: suiteName,
+    test: {
+      id: test.id,
+      path: relativeToRepo(test.path),
+    },
+    run: {
+      stamp,
+      started_at: startedAt,
+      host_duration_ms: hostDurationMs,
+    },
+    harness: summariseHarnessOptions(perTestOptions),
+    result: {
+      status: resultSummary.status,
+      pass: !!resultSummary.pass,
+      reason: resultSummary.reason || null,
+      duration_ms: resultSummary.duration_ms === undefined ? null : resultSummary.duration_ms,
+    },
+  };
+  if (resultSummary.code) record.result.code = resultSummary.code;
+  const artifacts = buildArtifactsSummary(test.id, sourcesDir, logsDir);
+  if (artifacts) record.artifacts = artifacts;
+  const metadataSnapshot = sanitiseMetadataSnapshot(metadataHints);
+  if (metadataSnapshot && Object.keys(metadataSnapshot).length) record.metadata = metadataSnapshot;
+  const cliSummary = {};
+  if (cliCommands.storagePreload) cliSummary.storage_preload = cliCommands.storagePreload;
+  if (cliCommands.upload) cliSummary.upload = cliCommands.upload;
+  if (Object.keys(cliSummary).length) record.espruino_cli = cliSummary;
+  const errorSummary = summariseError(error);
+  if (errorSummary) record.error = errorSummary;
+  const outputPath = path.join(suiteDir, `${test.id}.json`);
+  fs.writeFileSync(outputPath, JSON.stringify(record, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// formatCliCommand(cmd, args)
+// Pretty-print a CLI invocation for logging purposes.
+// cmd: string executable
+// args: array of arguments (strings/numbers)
+// ---------------------------------------------------------------------------
 function formatCliCommand(cmd, args) {
   const parts = [cmd].concat(args || []);
   return parts.map(part => {
@@ -20,6 +159,12 @@ function formatCliCommand(cmd, args) {
   }).join(' ');
 }
 
+// ---------------------------------------------------------------------------
+// parseMetadataHeader(src, fileId)
+// Extract optional /* JSON ... */ metadata blocks from test files.
+// src: raw file contents
+// fileId: identifier used in error messages
+// ---------------------------------------------------------------------------
 function parseMetadataHeader(src, fileId) {
   const BOM = '\ufeff';
   const withoutBOM = src.startsWith(BOM) ? src.slice(1) : src;
@@ -35,6 +180,11 @@ function parseMetadataHeader(src, fileId) {
   return { hints: parsed || {}, source: src };
 }
 
+// ---------------------------------------------------------------------------
+// coerceNonNegativeInt(value, label, fileId)
+// Validate numeric metadata values expected to be >= 0.
+// label/fileId help produce useful error diagnostics.
+// ---------------------------------------------------------------------------
 function coerceNonNegativeInt(value, label, fileId) {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) {
@@ -43,6 +193,11 @@ function coerceNonNegativeInt(value, label, fileId) {
   return Math.floor(num);
 }
 
+// ---------------------------------------------------------------------------
+// normaliseSaveOnSend(value, storageTarget, fileId)
+// Map metadata into SAVE_ON_SEND semantics understood by the CLI.
+// storageTarget is used to infer SAVE_ON_SEND=3 when not explicitly set.
+// ---------------------------------------------------------------------------
 function normaliseSaveOnSend(value, storageTarget, fileId) {
   if (value === undefined || value === null) {
     if (storageTarget) return { saveOnSend: 3 };
@@ -83,6 +238,10 @@ function normaliseSaveOnSend(value, storageTarget, fileId) {
   throw new Error(`Unsupported saveOnSend value in ${fileId}: ${value}`);
 }
 
+// ---------------------------------------------------------------------------
+// normaliseCliArgs(value, fileId)
+// Ensure cliArgs metadata is a string array we can spread onto the CLI.
+// ---------------------------------------------------------------------------
 function normaliseCliArgs(value, fileId) {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
@@ -96,6 +255,10 @@ function normaliseCliArgs(value, fileId) {
   return value.slice();
 }
 
+// ---------------------------------------------------------------------------
+// normaliseEspruinoConfig(value, fileId)
+// Convert metadata object to array of {key,value} suitable for --config.
+// ---------------------------------------------------------------------------
 function normaliseEspruinoConfig(value, fileId) {
   if (value === undefined) return [];
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -109,6 +272,11 @@ function normaliseEspruinoConfig(value, fileId) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// normaliseStoragePreload(value, fileId, testDir)
+// Build a uniform list of Storage preload descriptors from metadata.
+// testDir resolves relative sourceFile paths alongside the test.
+// ---------------------------------------------------------------------------
 function normaliseStoragePreload(value, fileId, testDir) {
   if (value === undefined) return [];
   const items = Array.isArray(value) ? value : [value];
@@ -145,6 +313,11 @@ function normaliseStoragePreload(value, fileId, testDir) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// buildTestOptions(rawHints, fileId, defaults, context)
+// Merge metadata-specified overrides with default per-test execution options.
+// context.testDir helps resolve relative Storage preload assets.
+// ---------------------------------------------------------------------------
 function buildTestOptions(rawHints, fileId, defaults, context = {}) {
   const hints = rawHints || {};
   const options = { ...defaults };
@@ -177,13 +350,18 @@ function buildTestOptions(rawHints, fileId, defaults, context = {}) {
     throw new Error(`storageTarget specified in ${fileId} requires saveOnSend set to 'storage' (3)`);
   }
 
-  options.cliArgs = normaliseCliArgs(hints.cliArgs, fileId);
-  options.espruinoConfig = normaliseEspruinoConfig(hints.espruinoConfig, fileId);
+  options.cliArgs = (options.cliArgs || []).concat(normaliseCliArgs(hints.cliArgs, fileId));
+  options.espruinoConfig = (options.espruinoConfig || []).concat(normaliseEspruinoConfig(hints.espruinoConfig, fileId));
   options.storagePreload = normaliseStoragePreload(hints.storagePreload, fileId, context.testDir);
 
   return options;
 }
 
+// ---------------------------------------------------------------------------
+// parseArgs(argv)
+// Simple option parser returning { key: value, _: positional }.
+// argv: process.argv array
+// ---------------------------------------------------------------------------
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 2; i < argv.length; i++) {
@@ -219,8 +397,16 @@ function usage() {
   console.log(`Usage: node scripts/run-tests-gordon.js --board <name> --port <tty> [--suites suite1,suite2] [--fixtures path] [--no-reset] [--pre-cli-delay <ms>] [--post-cli-delay <ms>]\n`);
 }
 
+// ---------------------------------------------------------------------------
+// wrapTestSource(fileId, src, timeoutMs, contextInjection)
+// Wrap raw test JS with harness helpers that surface JSON results via print.
+// fileId: identifier for reporting
+// src: original test source
+// timeoutMs: maximum wait before declaring timeout
+// contextInjection: optional snippet injected ahead of user code
+// ---------------------------------------------------------------------------
 function wrapTestSource(fileId, src, timeoutMs, contextInjection) {
-  const prologue = [];
+  const prologue = [''];
   prologue.push(`var result=undefined; var resultReason=undefined; var resultStatus=undefined;`);
   prologue.push(`var __setResult = function(v){ result = v; };`);
   if (contextInjection) {
@@ -275,13 +461,19 @@ ${src}
   return prologue.join('\n') + '\n' + epilogue;
 }
 
+// ---------------------------------------------------------------------------
+// run()
+// Orchestrate the full test run: parse flags, load manifests, execute suites.
+// ---------------------------------------------------------------------------
 async function run() {
   const args = parseArgs(process.argv);
   if (args.help) { usage(); process.exit(0); }
 
+  // Resolve target board from options or first positional argument.
   const board = args.board || args._[0];
   if (!board) { console.error('Error: --board <name> is required'); usage(); process.exit(1); }
 
+  // Helper to parse CLI-provided delay overrides.
   const parseDelay = (value, fallback) => {
     if (value === undefined || value === true) return fallback;
     const parsed = Number(value);
@@ -296,6 +488,7 @@ async function run() {
   const postCliDelayMs = parseDelay(args['post-cli-delay'], 1000);
   const defaultNoReset = Boolean(args['no-reset']);
 
+  // Optionally load fixtures injected into each test context.
   let fixtureInjection = '';
   if (args.fixtures) {
     if (typeof args.fixtures !== 'string') {
@@ -313,6 +506,7 @@ async function run() {
     }
   }
 
+  // Load board manifest metadata (suites, defaults, etc.).
   let manifest; let manifestPath;
   try {
     const loaded = loadManifest(board, REPO_ROOT);
@@ -321,9 +515,11 @@ async function run() {
     console.error(`Error: ${e.message}`); process.exit(1);
   }
 
+  // Choose serial port either from CLI flag or manifest default.
   const port = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
   if (!port) { console.error('Error: --port <tty> is required'); process.exit(1); }
 
+  // Work out which suites to execute and resolve to file list.
   const suitesInfo = resolveSuites(manifest, args.suites);
   if (suitesInfo.unknown?.length) {
     console.error(`Error: unknown suites: ${suitesInfo.unknown.join(', ')}`);
@@ -333,6 +529,7 @@ async function run() {
   const tests = resolveSuiteTests(REPO_ROOT, board.toLowerCase(), suitesInfo.requested);
   if (!tests.length) { console.log('No tests discovered for given suites.'); process.exit(0); }
 
+  // Prepare timestamped directories for sources and logs.
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
@@ -354,33 +551,58 @@ async function run() {
   console.log(`Delays:   pre-cli ${preCliDelayMs}ms, post-cli ${postCliDelayMs}ms`);
 
   const CLI = process.env.ESPRUINO_CLI || 'espruino';
-  const boardArg = manifest.board || (manifest.upstream && manifest.upstream.id) || board;
+  let boardJsonOverride = null;
+  if (manifest && typeof manifest.localJSON === 'string' && manifest.localJSON.trim()) {
+    const resolved = path.isAbsolute(manifest.localJSON)
+      ? manifest.localJSON
+      : path.resolve(path.dirname(manifestPath), manifest.localJSON);
+    if (!fs.existsSync(resolved)) {
+      console.error(`Error: manifest.localJSON specified but file not found: ${resolved}`);
+      process.exit(1);
+    }
+    boardJsonOverride = resolved;
+  }
+  const boardArg = boardJsonOverride || (manifest.upstream && manifest.upstream.id) || board;
 
   let passCount=0, failCount=0, skipCount=0;
   const bySuite = {};
+  const baseCliArgs = [];
+  if (manifest?.ports?.baud) {
+    baseCliArgs.push('--config', `BAUD_RATE=${manifest.ports.baud}`);
+  }
 
   for (const test of tests) {
     const suiteSummary = bySuite[test.suite] = bySuite[test.suite] || { tests: [], pass:0, fail:0, skip:0 };
+    const defaultOptions = {
+      preDelayMs: preCliDelayMs,
+      postDelayMs: postCliDelayMs,
+      noReset: defaultNoReset,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+      cliArgs: baseCliArgs.slice(),
+      espruinoConfig: [],
+      storagePreload: [],
+    };
+    let perTestOptions = { ...defaultOptions };
+    let metadataHints = {};
+    let storagePreloadCliCommand = null;
+    let uploadCliCommand = null;
+    let stage = 'prepare';
+    const testStartMs = Date.now();
+    const testStartedAtIso = new Date(testStartMs).toISOString();
     let rawSource;
-    let perTestOptions;
     try {
+      // Pull in source and per-test metadata overrides.
       rawSource = fs.readFileSync(test.path, 'utf8');
       const parsed = parseMetadataHeader(rawSource, test.id);
-      perTestOptions = buildTestOptions(parsed.hints, test.id, {
-        preDelayMs: preCliDelayMs,
-        postDelayMs: postCliDelayMs,
-        noReset: defaultNoReset,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
-        cliArgs: [],
-        espruinoConfig: [],
-        storagePreload: [],
-      }, { testDir: path.dirname(test.path) });
+      metadataHints = parsed.hints || {};
+      perTestOptions = buildTestOptions(parsed.hints, test.id, defaultOptions, { testDir: path.dirname(test.path) });
       if (perTestOptions.storagePreload.length) {
         if (!Boolean(args.quiet)) {
           const names = perTestOptions.storagePreload.map(item => item.filename).join(', ');
           console.log(`  -> preloading Storage files: ${names}`);
         }
-        await preloadStorageFiles(
+        stage = 'preload';
+        const preloadResult = await preloadStorageFiles(
           CLI,
           port,
           boardArg,
@@ -396,10 +618,15 @@ async function run() {
             testId: test.id,
           }
         );
+        if (preloadResult && preloadResult.cliCommand) storagePreloadCliCommand = preloadResult.cliCommand;
+        stage = 'prepare';
       }
+      // Wrap the script so results are reported back, then stash a copy.
       const wrapped = wrapTestSource(test.id, parsed.source, perTestOptions.timeoutMs, fixtureInjection);
       fs.writeFileSync(path.join(sourcesDir, test.id), wrapped);
       process.stdout.write(`Running ${test.id} ... `);
+      stage = 'upload';
+      // Execute the wrapped script via espruino CLI and collect outcome.
       const result = await sendViaCLI(
         CLI,
         port,
@@ -416,9 +643,39 @@ async function run() {
           espruinoConfig: perTestOptions.espruinoConfig,
         }
       );
+      uploadCliCommand = result.cliCommand || uploadCliCommand;
+      stage = 'finalise';
       suiteSummary.tests.push({ file: test.id, status: result.status, pass: result.pass, reason: result.reason, duration_ms: result.duration_ms });
       fs.writeFileSync(path.join(logsDir, `${test.id}.stdout`), result.stdout || '');
       fs.writeFileSync(path.join(logsDir, `${test.id}.stderr`), result.stderr || '');
+      const resultSummary = {
+        status: result.status,
+        pass: result.pass,
+        reason: result.reason || null,
+        duration_ms: result.duration_ms,
+      };
+      const hostDurationMs = Date.now() - testStartMs;
+      writePerTestRecord({
+        baseDir,
+        board,
+        port,
+        manifestPath,
+        stamp,
+        suiteName: test.suite,
+        test,
+        startedAt: testStartedAtIso,
+        hostDurationMs,
+        perTestOptions,
+        metadataHints,
+        resultSummary,
+        sourcesDir,
+        logsDir,
+        cliCommands: {
+          upload: uploadCliCommand,
+          storagePreload: storagePreloadCliCommand,
+        },
+        error: null,
+      });
       if (result.status === 'skip') {
         skipCount++; console.log(`SKIP${result.reason ? ` (${result.reason})` : ''}`);
         suiteSummary.skip++;
@@ -431,18 +688,76 @@ async function run() {
       }
       continue;
     } catch (err) {
+      if (stage === 'preload' && err && err.cliCommand && !storagePreloadCliCommand) storagePreloadCliCommand = err.cliCommand;
+      if (stage === 'upload' && err && err.cliCommand && !uploadCliCommand) uploadCliCommand = err.cliCommand;
+      const hostDurationMs = Date.now() - testStartMs;
       if (err && err.deviceBusy) {
         if (err.stdout) fs.writeFileSync(path.join(logsDir, `${test.id}.stdout`), err.stdout);
         if (err.stderr) fs.writeFileSync(path.join(logsDir, `${test.id}.stderr`), err.stderr);
+        writePerTestRecord({
+          baseDir,
+          board,
+          port,
+          manifestPath,
+          stamp,
+          suiteName: test.suite,
+          test,
+          startedAt: testStartedAtIso,
+          hostDurationMs,
+          perTestOptions,
+          metadataHints,
+          resultSummary: {
+            status: 'error',
+            pass: false,
+            reason: 'device busy',
+            duration_ms: null,
+            code: err.code || 'device_busy',
+          },
+          sourcesDir,
+          logsDir,
+          cliCommands: {
+            upload: uploadCliCommand,
+            storagePreload: storagePreloadCliCommand,
+          },
+          error: err,
+        });
         console.log('ABORT');
         console.error(`Error: device busy (is another REPL connected to ${port}?). Aborting test run.`);
         process.exit(2);
       }
+      // Any other failure while preparing/sending counts as a test failure.
       failCount++;
       suiteSummary.tests.push({ file: test.id, status: 'fail', pass: false, reason: err.message || err, duration_ms: null });
       suiteSummary.fail++;
       if (err && err.stdout) fs.writeFileSync(path.join(logsDir, `${test.id}.stdout`), err.stdout);
       if (err && err.stderr) fs.writeFileSync(path.join(logsDir, `${test.id}.stderr`), err.stderr);
+      writePerTestRecord({
+        baseDir,
+        board,
+        port,
+        manifestPath,
+        stamp,
+        suiteName: test.suite,
+        test,
+        startedAt: testStartedAtIso,
+        hostDurationMs,
+        perTestOptions,
+        metadataHints,
+        resultSummary: {
+          status: 'fail',
+          pass: false,
+          reason: err.message || err,
+          duration_ms: null,
+          code: err.code || null,
+        },
+        sourcesDir,
+        logsDir,
+        cliCommands: {
+          upload: uploadCliCommand,
+          storagePreload: storagePreloadCliCommand,
+        },
+        error: err,
+      });
       console.log(`FAIL (${err.message || err})`);
     }
   }
@@ -452,6 +767,7 @@ async function run() {
   console.log(`Saved logs to ${logsDir}`);
 
   try {
+    // Persist per-suite summaries for later inspection/CI reporting.
     Object.entries(bySuite).forEach(([suiteName, summary]) => {
       const fp = path.join(baseDir, `${suiteName}.json`);
       fs.writeFileSync(fp, JSON.stringify({ board, port, suite: suiteName, when: stamp, summary }, null, 2));
@@ -463,8 +779,18 @@ async function run() {
   process.exit(failCount ? 1 : 0);
 }
 
+// ---------------------------------------------------------------------------
+// preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options)
+// Upload Storage assets required by a test before running the main script.
+// cli: espruino CLI executable
+// port: serial/BLE endpoint to use
+// boardArg: board identifier passed via --board (optional)
+// quiet: suppress stdout/stderr echo when true
+// storageItems: descriptors returned by normaliseStoragePreload
+// options: {preDelayMs, postDelayMs, noReset, cliArgs, espruinoConfig, logsDir, testId}
+// ---------------------------------------------------------------------------
 function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options = {}) {
-  if (!storageItems || !storageItems.length) return Promise.resolve();
+  if (!storageItems || !storageItems.length) return Promise.resolve(null);
   const {
     preDelayMs = 0,
     postDelayMs = 0,
@@ -476,6 +802,7 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
   } = options;
 
   return new Promise((resolve, reject) => {
+    // Stage Storage payloads in a temporary directory for the CLI to read.
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'espruino-storage-'));
     const tempPaths = [];
     try {
@@ -497,6 +824,7 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
     const preloadStubPath = path.join(tempDir, 'storage_preload_stub.js');
     fs.writeFileSync(preloadStubPath, '// storage preload stub\n');
 
+    // Compose CLI arguments (port, configs, board, storage mappings).
     const args = ['--port', port, '--no-ble'];
     if (noReset) args.push('--config', 'RESET_BEFORE_SEND=false');
     if (Array.isArray(espruinoConfig) && espruinoConfig.length) {
@@ -513,7 +841,9 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
     args.push(preloadStubPath);
 
     const launch = () => {
-      console.log(`[espruino-cli] ${formatCliCommand(cli, args)}`);
+      // Spawn the CLI and forward output when not in quiet mode.
+      const cliCommand = formatCliCommand(cli, args);
+      console.log(`[espruino-cli] ${cliCommand}`);
       const child = spawn(cli, args, { stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '';
       let stderr = '';
@@ -536,6 +866,7 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
       });
       child.on('error', err => {
         if (!settled) fs.rmSync(tempDir, { recursive: true, force: true });
+        err.cliCommand = cliCommand;
         finish(() => reject(err));
       });
       child.on('close', code => {
@@ -547,6 +878,8 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
           err.stdout = stdout;
           err.stderr = stderr;
           err.deviceBusy = true;
+          err.code = 'device_busy';
+          err.cliCommand = cliCommand;
           return finish(() => reject(err));
         }
         const knownPortError = /TypeError: Cannot read properties of undefined \(reading 'type'\)/.test(stderr);
@@ -554,6 +887,8 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
           const err = new Error(`storage_preload_failed (exit ${code})`);
           err.stdout = stdout;
           err.stderr = stderr;
+          err.code = 'storage_preload_failed';
+          err.cliCommand = cliCommand;
           return finish(() => reject(err));
         }
         if (logsDir && testId) {
@@ -564,7 +899,7 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
             // best effort, ignore
           }
         }
-        finish(() => resolve());
+        finish(() => resolve({ cliCommand }));
       });
     };
 
@@ -572,7 +907,10 @@ function preloadStorageFiles(cli, port, boardArg, quiet, storageItems, options =
     else launch();
   });
 }
-
+// ---------------------------------------------------------------------------
+// formatConfigValue(value)
+// Helper to serialise config values safely for --config key=value pairs.
+// ---------------------------------------------------------------------------
 function formatConfigValue(value) {
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
@@ -580,6 +918,16 @@ function formatConfigValue(value) {
   return JSON.stringify(value);
 }
 
+// ---------------------------------------------------------------------------
+// sendViaCLI(cli, port, boardArg, code, quiet, options)
+// Execute a wrapped test via the espruino CLI and parse the JSON result line.
+// cli: espruino CLI executable path
+// port: serial/BLE endpoint
+// boardArg: board identifier for --board (optional)
+// code: wrapped JavaScript source to execute
+// quiet: suppress stderr streaming when true
+// options: {preDelayMs, postDelayMs, noReset, saveOnSend, storageTarget, cliArgs, espruinoConfig}
+// ---------------------------------------------------------------------------
 function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
   const {
     preDelayMs = 0,
@@ -591,10 +939,12 @@ function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
     espruinoConfig = [],
   } = options || {};
   return new Promise((resolve, reject) => {
+    // Write the wrapped test to a temp file consumed by the espruino CLI.
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'espruino-gordon-'));
     const tempFile = path.join(tempDir, 'test.js');
     fs.writeFileSync(tempFile, code);
 
+    // Assemble base CLI args including optional configs and board JSON.
     const args = ['--port', port, '--no-ble'];
     if (noReset) args.push('--config', 'RESET_BEFORE_SEND=false');
     if (saveOnSend !== undefined) args.push('--config', `SAVE_ON_SEND=${formatConfigValue(saveOnSend)}`);
@@ -609,7 +959,9 @@ function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
     args.push(tempFile);
 
     const launch = () => {
-      console.log(`[espruino-cli] ${formatCliCommand(cli, args)}`);
+      // Launch CLI process and collect stdout/stderr for log files.
+      const cliCommand = formatCliCommand(cli, args);
+      console.log(`[espruino-cli] ${cliCommand}`);
       const child = spawn(cli, args, { stdio: ['ignore','pipe','pipe'] });
       let stdout=''; let stderr='';
       let settled = false;
@@ -625,6 +977,7 @@ function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
       child.stderr.on('data', d=>{ stderr += d.toString(); if (!quiet) process.stderr.write(d.toString()); });
       child.on('error', err => {
         if (!settled) fs.rmSync(tempDir, { recursive: true, force: true });
+        err.cliCommand = cliCommand;
         finish(() => reject(err));
       });
       child.on('close', () => {
@@ -636,12 +989,17 @@ function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
           err.stdout = stdout;
           err.stderr = stderr;
           err.deviceBusy = true;
+          err.code = 'device_busy';
+          err.cliCommand = cliCommand;
           return finish(() => reject(err));
         }
+        // Locate the JSON payload emitted by the harness and parse results.
         const match = stdout.split(/\r?\n/).filter(l=>l.includes('__espruino_test__')).pop();
         if (!match) {
           const err = new Error('no_result');
           err.stdout = stdout; err.stderr = stderr;
+          err.code = 'no_result';
+          err.cliCommand = cliCommand;
           return finish(() => reject(err));
         }
         try {
@@ -653,11 +1011,14 @@ function sendViaCLI(cli, port, boardArg, code, quiet, options = {}) {
             reason: json.reason || null,
             duration_ms: json.duration_ms || null,
             stdout,
-            stderr
+            stderr,
+            cliCommand
           }));
         } catch (e) {
           const err = new Error('invalid_result_json');
           err.stdout = stdout; err.stderr = stderr;
+          err.code = 'invalid_result_json';
+          err.cliCommand = cliCommand;
           finish(() => reject(err));
         }
       });

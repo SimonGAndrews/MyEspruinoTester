@@ -5,6 +5,7 @@
     "id": "ESP32C3_IDF4",
     "binary": "espruino_%v_esp32c3.bin"
   },
+  "localJSON": "../boards/cliBoardFiles/ESP32C3_IDF4.json",
   "firmware": {
     "pattern": "espruino_%v_esp32c3.bin",
     "artifacts": [
@@ -66,7 +67,8 @@
       "wifi-mqtt-ws",
       "wifi-ap",
       "wifi-config-diagnostics",
-      "basicAsync"
+      "basicAsync",
+      "runner-metadata"
     ]
   }
 }

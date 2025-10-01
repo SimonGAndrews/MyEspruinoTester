@@ -6,12 +6,13 @@ Board manifests live under `boards/<BOARD>.json` and describe everything the har
 
 ```json
 {
-  "board": "ESP32C3",
-  "description": "ESP32-C3 USB/serial harness manifest for Espruino testing",
+  "board": "ESP32-C3 USB/serial harness manifest",
+  "description": "ESP32-C3 USB/serial harness for Espruino testing",
   "upstream": {
     "id": "ESP32C3",
     "binary": "espruino_%v_esp32c3.bin"
   },
+  "localJSON": "../configs/custom/ESP32C3.json",
   "firmware": {
     "pattern": "espruino_%v_esp32c3.bin",
     "artifacts": [
@@ -70,6 +71,13 @@ Board manifests live under `boards/<BOARD>.json` and describe everything the har
 ### Suites
 - `suites.available`: list of suites safe to run on this board (e.g., `javascript-core`, `wifi-connectivity`, `javascript-upstream`).
 - `suites.default`: suites the runner executes when `--suites` is omitted.
+
+### Board JSON Override
+- `localJSON` (optional): absolute or manifest-relative path to a local board JSON file compatible with the Espruino CLI.
+  - When provided, the runners pass this path directly to `espruino --board <path>`.
+  - Use this to test community boards or custom firmware builds that are not published under `https://www.espruino.com/json/<BOARD>.json`.
+  - The path must resolve to an existing file; the runners treat a missing file as a fatal configuration error.
+  - If `localJSON` is omitted, the runners fall back to `manifest.upstream.id`; if that is missing, the CLI uses the board name supplied on the command line.
 
 ## Purpose / Flow
 1. **Dry-run** (`scripts/dry-run.js`) reads the manifest to validate firmware artifacts, adapter selection, and suite availability.

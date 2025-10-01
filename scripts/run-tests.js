@@ -142,8 +142,23 @@ async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=fa
   return new Promise((resolve) => {
     let done = false;
     const cmd = process.env.ESPRUINO_CLI || 'espruino';
-    const args = ['--port', port, '-e', wrapped];
-    const boardArg = process.env.ESPRUINO_BOARD || (manifest && (manifest.board || (manifest.upstream && manifest.upstream.id)));
+    const args = ['--port', port];
+    if (manifest?.ports?.baud) {
+      args.push('--config', `BAUD_RATE=${manifest.ports.baud}`);
+    }
+    args.push('-e', wrapped);
+    let boardJsonOverride = null;
+    if (manifest && typeof manifest.localJSON === 'string' && manifest.localJSON.trim()) {
+      const resolved = path.isAbsolute(manifest.localJSON)
+        ? manifest.localJSON
+        : path.resolve(path.dirname(manifestPath), manifest.localJSON);
+      if (!fs.existsSync(resolved)) {
+        console.error(`Error: manifest.localJSON specified but file not found: ${resolved}`);
+        process.exit(1);
+      }
+      boardJsonOverride = resolved;
+    }
+    const boardArg = process.env.ESPRUINO_BOARD || boardJsonOverride || (manifest && manifest.upstream && manifest.upstream.id) || board;
     if (boardArg) args.push('--board', boardArg);
     const child = spawn(cmd, args, { stdio: ['ignore','pipe','pipe'] });
     let out=''; let err='';

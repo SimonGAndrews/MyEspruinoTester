@@ -1,0 +1,424 @@
+{
+ "info": {
+  "name": "ESP32C3",
+  "espruino_page_link": "ESP32",
+  "default_console": "EV_SERIAL1",
+  "default_console_baudrate": "115200",
+  "variables": 16383,
+  "io_buffer_size": 1024,
+  "binary_name": "espruino_%v_esp32c3.bin",
+  "build": {
+   "optimizeflags": "-Og",
+   "libraries": [
+    "ESP32",
+    "NET",
+    "GRAPHICS",
+    "CRYPTO",
+    "SHA256",
+    "SHA512",
+    "TLS",
+    "BLUETOOTH",
+    "NEOPIXEL"
+   ],
+   "makefile": [
+    "DEFINES+=-DESP_PLATFORM -DESP32=1",
+    "DEFINES+=-DESP_STACK_SIZE=25000",
+    "DEFINES+=-DJSVAR_MALLOC",
+    "DEFINES+=-DUSE_FONT_6X8",
+    "DEFINES+=-DUSB_CDC",
+    "ESP32_FLASH_MAX=1572864"
+   ]
+  },
+  "image_url": "http://www.espruino.com/img/ESP32C3_IDF4.jpg",
+  "thumb_url": "http://www.espruino.com/img/ESP32C3_IDF4_thumb.jpg",
+  "binary_version": "2v25.19",
+  "binary_url": "http://www.espruino.com/binaries/espruino_2v25.19_esp32c3.bin",
+  "builtin_modules": [
+   "Storage",
+   "Flash",
+   "CC3000",
+   "NetworkJS",
+   "TelnetServer",
+   "ESP8266",
+   "http",
+   "Wifi",
+   "net",
+   "dgram",
+   "tensorflow",
+   "heatshrink",
+   "fs",
+   "neopixel"
+  ]
+ },
+ "chip": {
+  "part": "ESP32C3",
+  "family": "ESP32_IDF4",
+  "package": "",
+  "ram": 400,
+  "flash": 0,
+  "speed": 160,
+  "usart": 2,
+  "spi": 1,
+  "i2c": 1,
+  "adc": 2,
+  "dac": 0,
+  "saved_code": {
+   "address": 3276800,
+   "page_size": 4096,
+   "pages": 64,
+   "flash_available": 1344
+  }
+ },
+ "devices": {
+  "LED1": {
+   "pin": "D2"
+  },
+  "BTN1": {
+   "pin": "D0",
+   "inverted": 1,
+   "pinstate": "IN_PULLUP"
+  }
+ },
+ "pins": [
+  {
+   "name": "D0",
+   "port": "D",
+   "num": "0",
+   "sortingname": "D00",
+   "functions": {
+    "ADC1_IN0": 0,
+    "3.3": 0,
+    "BTN1": "pin"
+   },
+   "csv": {},
+   "simplefunctions": {
+    "ADC": [
+     "ADC1_IN0"
+    ],
+    "DEVICE": [
+     "BTN1"
+    ]
+   }
+  },
+  {
+   "name": "D1",
+   "port": "D",
+   "num": "1",
+   "sortingname": "D01",
+   "functions": {
+    "ADC1_IN1": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "ADC": [
+     "ADC1_IN1"
+    ]
+   }
+  },
+  {
+   "name": "D2",
+   "port": "D",
+   "num": "2",
+   "sortingname": "D02",
+   "functions": {
+    "ADC1_IN2": 0,
+    "3.3": 0,
+    "LED1": "pin"
+   },
+   "csv": {},
+   "simplefunctions": {
+    "ADC": [
+     "ADC1_IN2"
+    ],
+    "DEVICE": [
+     "LED1"
+    ]
+   }
+  },
+  {
+   "name": "D3",
+   "port": "D",
+   "num": "3",
+   "sortingname": "D03",
+   "functions": {
+    "ADC1_IN3": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "ADC": [
+     "ADC1_IN3"
+    ]
+   }
+  },
+  {
+   "name": "D4",
+   "port": "D",
+   "num": "4",
+   "sortingname": "D04",
+   "functions": {
+    "ADC1_IN4": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "ADC": [
+     "ADC1_IN4"
+    ]
+   }
+  },
+  {
+   "name": "D5",
+   "port": "D",
+   "num": "5",
+   "sortingname": "D05",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D6",
+   "port": "D",
+   "num": "6",
+   "sortingname": "D06",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D7",
+   "port": "D",
+   "num": "7",
+   "sortingname": "D07",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D8",
+   "port": "D",
+   "num": "8",
+   "sortingname": "D08",
+   "functions": {
+    "I2C1_SDA": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "I2C": [
+     "I2C1_SDA"
+    ]
+   }
+  },
+  {
+   "name": "D9",
+   "port": "D",
+   "num": "9",
+   "sortingname": "D09",
+   "functions": {
+    "I2C1_SCL": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "I2C": [
+     "I2C1_SCL"
+    ]
+   }
+  },
+  {
+   "name": "D10",
+   "port": "D",
+   "num": "10",
+   "sortingname": "D10",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D11",
+   "port": "D",
+   "num": "11",
+   "sortingname": "D11",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D12",
+   "port": "D",
+   "num": "12",
+   "sortingname": "D12",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D13",
+   "port": "D",
+   "num": "13",
+   "sortingname": "D13",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D14",
+   "port": "D",
+   "num": "14",
+   "sortingname": "D14",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D15",
+   "port": "D",
+   "num": "15",
+   "sortingname": "D15",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D16",
+   "port": "D",
+   "num": "16",
+   "sortingname": "D16",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D17",
+   "port": "D",
+   "num": "17",
+   "sortingname": "D17",
+   "functions": {
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {}
+  },
+  {
+   "name": "D18",
+   "port": "D",
+   "num": "18",
+   "sortingname": "D18",
+   "functions": {
+    "USB": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "DEVICE": [
+     "USB"
+    ]
+   }
+  },
+  {
+   "name": "D19",
+   "port": "D",
+   "num": "19",
+   "sortingname": "D19",
+   "functions": {
+    "USB": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "DEVICE": [
+     "USB"
+    ]
+   }
+  },
+  {
+   "name": "D20",
+   "port": "D",
+   "num": "20",
+   "sortingname": "D20",
+   "functions": {
+    "USART1_RX": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "USART": [
+     "USART1_RX"
+    ]
+   }
+  },
+  {
+   "name": "D21",
+   "port": "D",
+   "num": "21",
+   "sortingname": "D21",
+   "functions": {
+    "USART1_TX": 0,
+    "3.3": 0
+   },
+   "csv": {},
+   "simplefunctions": {
+    "USART": [
+     "USART1_TX"
+    ]
+   }
+  }
+ ],
+ "peripherals": {
+  "ADC": {
+   "": [
+    "D0",
+    "D1",
+    "D2",
+    "D3",
+    "D4"
+   ]
+  },
+  "DEVICE": {
+   "": [
+    "D0",
+    "D2",
+    "D18",
+    "D19"
+   ]
+  },
+  "I2C1": {
+   "SDA": [
+    "D8"
+   ],
+   "SCL": [
+    "D9"
+   ]
+  },
+  "USART1": {
+   "RX": [
+    "D20"
+   ],
+   "TX": [
+    "D21"
+   ]
+  }
+ }
+}

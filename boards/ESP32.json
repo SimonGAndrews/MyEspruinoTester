@@ -59,7 +59,8 @@
       "library-xfsm",
       "hardware-io",
       "wifi-connectivity",
-      "javascript-upstream"
+      "javascript-upstream",
+      "runner-metadata"
     ]
   }
 }

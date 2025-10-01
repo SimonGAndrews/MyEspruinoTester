@@ -268,8 +268,9 @@ When you provide a JSON path, the CLI injects its contents into `Espruino.Core.E
 - **Local overrides**: For unpublished or custom boards, generate the JSON yourself and pass it to the CLI:
 
   ```bash
-  # Inside the Espruino firmware repo
+  # Inside the Espruino firmware repo eg for the board ESP32C3_IDF4
   python scripts/build_board_json.py boards/MYBOARD.py > MYBOARD.json
+  python scripts/build_board_json.py -Ddefine=1 -BESP32C3_IDF4 
 
   # Copy into EspruinoTools and reference it
   cp MYBOARD.json /path/to/EspruinoTools/boards/
