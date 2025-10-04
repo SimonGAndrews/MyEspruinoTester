@@ -214,7 +214,7 @@ Stored `espruino` config entries overwrite the built-in defaults (for example `S
 | `-j [file]` | optional path | — | Load existing job file or create one based on current args. |
 | `-o` | path | — | Write final JavaScript payload (post transformations) to disk. |
 | `--ohex` | path | — | Emit Intel HEX formatted Storage image from contents being uploaded. |
-| `--storage name:file|pair | — |  Write files into Storage; use `-` to map main code into Storage instead of RAM. |
+| `--storage name:file`|pair | — |  Write files into Storage; use `-` to map main code into Storage instead of RAM. |
 | `-f` | path[:offset] | — | Flash firmware binary via bootloader connection. |
 | `--board` | name or JSON path | auto | Force board definition instead of probing on connect. |
 | `--remote` | string | — | Connect via WebRTC bridge peer ID. |
