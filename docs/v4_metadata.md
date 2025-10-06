@@ -1,52 +1,169 @@
-# v4 metadata specification notes
+# Espruino Test Harness v4 – Metadata Specification
 
-## The test platform contains three types of config metadata 
+## 1. Overview
+This document captures the v4 metadata model that governs how the Espruino test harness configures, executes, and records test runs. It describes the repository layout, the configuration object exposed to the harness (“config”), the layering and precedence rules that build that object, validation expectations, and the artefacts emitted after each run. The goal is to provide a stable foundation for future automation while keeping Gordon’s original tooling usable.
 
-`Fixture data` (config.fixture), data to be injected into tests, providing constants for the physical  connection and environment  of the target for the test.  E.g.  WiFi credentials, I2c addresses, Gpio mappings etc. 
+## 2. Repository Structure
+```
+MyEspruinoTester01/
+├─ boards/
+│  └─ <board>/
+│     ├─ manifest.json                 # board-specific harness manifest
+│     ├─ cliBoardFiles/                # EspruinoTools board JSON overrides
+│     ├─ firmware/<version>/...        # prebuilt firmware bundles
+│     ├─ config/<*.json>               # optional manifest-level overrides
+│     └─ fixtures/<*.json>             # baseline board fixture catalogues
+├─ configs/                             # shared run-session defaults / environments
+├─ docs/                                # specifications, run books, archives
+├─ lib/                                 # reusable harness source libraries (resolver, discovery, etc.)
+├─ results/                             # timestamped run artefacts
+├─ scripts/                             # CLI entrypoints (runners, flashers, utilities)
+├─ tests/
+│  └─ <target>/
+│     └─ <suite>/
+│        ├─ test_*.js                  # test scripts
+│        ├─ testConfig.json            # suite-level defaults (see §4.3)
+│        └─ assets/                    # storage preload files, supporting fixtures
+├─ EspruinoTools/                       # upstream CLI and dependencies
+└─ … other historical support folders (flashers, firmware, openocd, etc.)
+```
 
-`Espruino cli data` (config.cli) , variables to be passed to the espruino CLI which direct:
-  - the transfer to the target (eg set port and baud rate) 
-  - storage of the test payload on the target. (eg SAVE_ON_SEND to RAM,Flash,Storage)
-  - additional target controls (eg RESET_BEFORE_SEND)
-  - console output (quiet, verbose, color)
+## 3. Configuration Model
+The harness builds a single `config` object per test. Metadata is grouped into three logical branches:
 
-`Test loader data` (config.loader) , variables which direct the operation of the test loading and execution. Principally, the creation of the test payload,  building the Espruino CLI command (with the config.cli variables) and the timing and execution of the cli.  Test loader data includes the test suite name, execution delays etc.  
+- **`config.fixture`** – constants injected into the device under test (Wi-Fi credentials, GPIO mappings, sensor addresses). These values are exposed to tests via `global.ESPRUINO_FIXTURES`.
+- **`config.cli`** – parameters passed to the Espruino CLI (`SAVE_ON_SEND`, `RESET_BEFORE_SEND`, `--config` pairs, port list, baud rate).
+- **`config.loader`** – harness execution controls (selected board and suites, pre/post delays, timeouts, storage preload descriptors, execution order, requirement tags).
 
- 
-## Layers in the test platform
-The test platform is structured as a set of layers. Each layer contributes metadata and context that narrows from global run intent down to a single CLI invocation, and the values established in an upper layer are available to the layers beneath it.
+Each layer of the harness contributes to these branches; later layers may override earlier ones subject to the merge rules in §6.
 
-### Test execution (run session)
-Represents one invocation of the harness. It captures the operator intent (requested suites, chosen overrides, future fixture-environment selection), loads shared configuration such as `configDefaults.json`, and produces the base `config` object. This layer also establishes run identifiers (timestamp, output directories) used for logging and reporting.
+## 4. Layered Merge Pipeline
+Metadata is applied from highest scope (run session) down to the individual EspruinoTools CLI invocation. Values established by an upper layer are available to all layers beneath it.
 
-### Board profile
-Pulls metadata from the selected board manifest (e.g., default suites, preferred ports, storage targets, min baud). These values specialise the run session for a specific hardware family and may set defaults for `config.cli` (port pattern, `SAVE_ON_SEND`) or `config.loader` (allowable suites).
+### 4.1 Run Session
+A single harness invocation (“run session”) captures operator intent: requested suites, CLI overrides, fixture source, and output directory. The session loads shared defaults such as `EspruinoTools/configDefaults.json`, seeding `config.cli` and `config.loader` before specialising for any board.
 
-### Test suite
-Represents the collection of test scripts being executed together. Suite-level metadata (e.g., `suite_config.json`) can augment fixture data, adjust CLI arguments required by every script, or apply loader hints such as pre/post delays. The suite layer clones the run-level config and narrows it for the contained scripts.
+> _Note:_ In EspruinoTools the `configDefaults.json` file is a reference template. The harness may actively load and merge it to establish baseline CLI settings before applying board/suite/test overrides.
 
-### Test script
-The individual `test_*.js` file contributes per-test metadata via its JSON header. It can override fixture keys, adjust timeouts, request storage preloads, or mark itself as skip/experimental. The merged output becomes the plan for the upcoming upload.
+### 4.2 Board Profile
+The selected board manifest provides defaults for suites, port hints, baud rates, and storage policy. It may also seed `config.fixture` by referencing `boards/<board>/fixtures/base.json` and can wire in additional configuration overrides from `boards/<board>/config/`.
 
-### CLI invocation
-Each script turns into at least one Espruino CLI command. This layer materialises the merged metadata into concrete actions: wrap source, stage storage payloads, calculate delays, build the CLI argument list, and track stdout/stderr. Results from the CLI feed back into the reporting layer.
+### 4.3 Suite Layer
+Suites narrow the run session to a functional area. Each suite may ship a `tests/<target>/<suite>/testConfig.json` with the schema below:
 
-The layers flow into the collection and reporting pipeline: after each CLI invocation completes, the harness persists logs, the merged metadata snapshot, and the pass/fail decision so the run session can produce suite and run summaries.
+```json
+{
+  "suite": "wifi-station",
+  "metadataVersion": 1,
+  "config": {
+    "loader": {
+      "preUploadDelayMs": 1500,
+      "timeoutMs": 20000
+    },
+    "cli": {
+      "RESET_BEFORE_SEND": false
+    },
+    "fixture": {
+      "wifi": {
+        "required": ["wifi", "wifiInvalid"]
+      }
+    }
+  },
+  "notes": "Defaults applied to every wifi-station test."
+}
+```
 
-### Merge and precedence rules
-Each layer applies its metadata to the in-flight `config` object using a simple overwrite strategy:
-- Keys that do not yet exist are added.
-- Keys that already exist are replaced with the new value, even when the value is an array or nested object.
+Keys inside `config` mirror the top-level branches (`loader`, `cli`, `fixture`). The resolver merges them into the in-flight `config` object without prefixing. Provenance is recorded separately so downstream tools can see which layer supplied each value.
 
-This yields an explicit precedence order: run session defaults → board profile → suite overrides → test metadata → command-line flags. After each layer is applied, the harness validates the resulting config so conflicting or unsupported combinations (for example, requesting `saveOnSend=storage` when the board forbids Storage writes) surface immediately.
+Suites can also define execution order by supplying an `execution.order` array:
 
-Future iterations can introduce richer merge semantics (append, deep-merge) on a per-key basis, but the v4 baseline assumes last-writer-wins for clarity.
+```json
+{
+  "suite": "wifi-station",
+  "metadataVersion": 1,
+  "execution": {
+    "order": [
+      "test_setup.js",
+      "../shared/test_library_require.js",
+      "test_consumes_library.js"
+    ]
+  },
+  "config": { /* … */ }
+}
+```
 
-## Fixture metadata schema and injection
-The harness loads fixture data from JSON files and threads it through the same layering model as other metadata types. Each layer may add new fixture keys or replace existing ones, following the overwrite precedence described above.
+The harness maps this list onto the discovered tests (and any shared helpers) to derive the execution sequence. Tests not listed follow deterministic discovery order. Internally the runner turns this into the chained execution flow, so authors do not need to declare per-test `chain` / `order` metadata unless they wish to override the suite default.
 
-A fixture document is a JSON object whose top-level keys group related data (for example `wifi`, `peripherals`, `mqtt`). The structure stays flexible, but authors should prefer descriptive leaf fields and avoid sharing secrets across suites unintentionally.
+### 4.4 Test Script Layer
+Individual `test_*.js` files contribute metadata through an opening `/* JSON { … } */` comment. Common keys include `timeoutMs`, `preUploadDelayMs`, `storagePreload`, `cliArgs`, `espruinoConfig`, `fixtures.required`, and `requirements`. The harness parses the header, merges it into the suite-level `config`, and validates the result before scheduling the CLI upload.
 
+### 4.5 CLI Overrides
+Harness command-line switches always apply last. §5.2 lists the mapping between flags and `config` branches. When supplied multiple times, the rightmost flag wins. CLI overrides are also responsible for seeding values such as `config.loader.port` and `config.cli.ports`.
+
+### 4.6 CLI Invocation
+Each test ultimately becomes one or more Espruino CLI invocations. At this layer the harness:
+- wraps the test source with harness helpers (keep-alive heartbeat, result capture),
+- injects the resolved fixture subset into `global.ESPRUINO_FIXTURES`,
+- stages any storage preload assets,
+- constructs the CLI argument list from `config.cli`,
+- enforces configured pre/post delays, and
+- captures stdout/stderr to per-test logs.
+
+The invocation layer also persists artefacts described in §8.
+
+### 4.7 Metadata Acquisition Workflow Summary
+1. Load shared defaults (including `configDefaults.json`) to seed the run-session `config`.
+2. Merge board manifest defaults and board-level fixtures.
+3. Apply run-level overrides declared on the harness CLI (fixture file selection, suites, output dir).
+4. For each suite, clone the run config, merge `testConfig.json`, and apply any suite fixture overlay. Validate suite-level `fixtures.required` at this stage.
+5. For each test, merge metadata from the JSON header, validate requirements, and collect diagnostics.
+6. Immediately before execution, materialise the final CLI command, inject fixtures, and execute.
+
+## 5. Harness CLI Integration
+
+### 5.1 Supported Flags
+The harness exposes a small set of CLI switches. These belong to the **harness CLI**, not the downstream EspruinoTools CLI.
+
+| Flag | Destination | Notes |
+| --- | --- | --- |
+| `--board <id>` | `config.loader.board` | Also determines the board manifest. Conflicting metadata aborts the run. |
+| `--port <tty>` | `config.loader.port`, `config.cli.ports[0]` | Additional `--port` flags append to the ports array in order supplied. |
+| `--suites a,b` | `config.loader.requestedSuites` | Bypasses manifest defaults; unknown suite names trigger a fatal error. |
+| `--fixtures <path>` | `config.fixtureSource` (merged into `config.fixture`) | Supplies the top-level fixture document; lower layers can still override branches. |
+| `--pre-cli-delay <ms>` | `config.loader.preUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
+| `--post-cli-delay <ms>` | `config.loader.postUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
+| `--no-reset` | `config.loader.noReset = true`, `config.cli.RESET_BEFORE_SEND = false` | Overrides any metadata requesting resets; provenance records the override. |
+| `--only <pattern>` (planned) | `config.loader.testFilter.pattern` | Filters discovered tests by ID/title. |
+| `--quiet` / `--verbose` | `config.loader.quiet`, `config.loader.verbose` | Govern logging behaviour within the harness. |
+
+### 5.2 Collision Handling
+Collisions occur when two layers assign competing values to the same configuration field. The harness resolves them as follows:
+
+- Scalar fields (`preUploadDelayMs`, `timeoutMs`, `noReset`, `RESET_BEFORE_SEND`) are replaced outright by the CLI value.
+- Array fields (`ports`, `cliArgs`, `espruinoConfig`, `storagePreload`) follow the merge behaviour defined in §6.
+- When a CLI override makes earlier metadata impossible (for example, `--no-reset` against a mandatory reset), the resolver records a warning and honours the CLI directive unless the board manifest marks the behaviour as fatal.
+
+## 6. Merge Behaviour and Precedence
+The resolver applies a last-writer-wins policy by default: unknown keys are added; scalar values and objects are replaced when new values arrive. Arrays have explicit exceptions to avoid clobbering necessary data.
+
+| Key | Default Behaviour | Merge Rule |
+| --- | --- | --- |
+| `config.loader.preUploadDelayMs`, `config.loader.postUploadDelayMs`, `config.loader.timeoutMs`, `config.loader.noReset`, `config.loader.reset` | Replace | Later value replaces earlier ones. |
+| `config.cli.SAVE_ON_SEND`, `config.cli.RESET_BEFORE_SEND`, `config.cli.BAUD_RATE`, other scalar `config.cli.*` | Replace | The most recent layer wins. |
+| `config.cli.ports` | Replace array unless appended via CLI | Metadata supplies a default array; each `--port` flag appends in order. |
+| `config.cli.cliArgs` | Append | Treat entries as a queue; CLI `--config` pairs may replace specific values. |
+| `config.cli.espruinoConfig` | Append with dedupe | `{key,value}` pairs accumulate; later values overwrite duplicate keys. |
+| `config.loader.storagePreload` | Append | Descriptors accumulate; supplying an empty array clears prior entries. |
+| `config.fixture.*` | Replace per key | Entire fixture sub-objects (e.g., `wifi`) are replaced by later layers. |
+| `config.loader.execution.order` | Replace | Suite metadata is authoritative for ordering; tests not listed follow deterministic discovery order. |
+| `config.loader.requirements` | Replace | Per-test metadata is authoritative. |
+
+Resulting precedence order: **run session defaults → board profile → suite overrides → test metadata → harness CLI flags.**
+
+## 7. Fixture Metadata
+Fixture documents are JSON objects whose top-level keys group related values (for example, `wifi`, `peripherals`, `mqtt`). Authors should keep payloads descriptive and avoid hard-coding secrets into source control.
+
+### 7.1 Schema Example
 ```json
 {
   "wifi": {
@@ -66,45 +183,175 @@ A fixture document is a JSON object whose top-level keys group related data (for
 }
 ```
 
-### Sources and resolution
-- Board catalogue: each board provides a `fixtures/<board>/base.json` (or equivalent module) that captures non-negotiable wiring such as GPIO mappings, storage slots, and default transport credentials. This file seeds `config.fixture` as soon as the board is selected.
-- Suite overlays: every suite may ship a `tests/<suite>/suite.fixtures.json` file. When present, it overwrites or extends the board catalogue for matching fixture keys so that the suite's functional requirements are applied consistently across boards.
-- Environment profile (future): a later revision may allow the run session to select an environment label (for example `lab`, `ci`) that loads `fixtures/environments/<env>.json`. Until then, teams can model environment differences directly inside the suite overlays or board catalogues.
-- Test metadata: individual scripts may override or extend fixture values within their JSON header when they need bespoke data (for example a temporary SSID or expected certificate fingerprint).
+### 7.2 Sources and Overlays
+- **Board catalogue:** all `boards/<board>/fixtures/*.json` files are loaded (typically starting with `base.json`) to capture wiring, storage slots, and immutable transport credentials.
+- **Suite overlay:** `tests/<suite>/suite.fixtures.json` (optional) extends or overrides board catalogues to enforce suite-specific requirements.
+- **Run-session fixture file:** selected via `--fixtures <path>`; typically references `configs/fixtures.<env>.json`.
+- **Test metadata:** individual scripts can tweak fixture values in their header when they require bespoke inputs.
 
-With these sources the harness still applies last-writer-wins precedence, but the catalogue gives each layer a predictable place to declare its needs.
+### 7.3 Declaring Fixture Requirements
+Suites and tests may declare `fixtures.required` (array of dotted paths). The resolver validates the merged fixture object against these requirements, fails early when mandatory data is missing, and trims the injected object so the device only receives the requested branches. When `fixtures.required` is omitted the entire fixture tree is injected.
 
-### Declaring requirements
-Test metadata should list the fixture paths it expects via `fixtures.required` (an array of dotted keys). During the merge the harness verifies that every required path is present after all overlays are applied, and the same list is used to slice the merged fixture object before injection so only the requested branches reach the device. When a script omits `fixtures.required`, the harness falls back to injecting the entire fixture object. Suites may also provide a `fixtures.required` list so the run fails early if the board catalogue or suite overlay lacks the necessary blocks.
+**Examples:**
 
-### Injection point
-Just before the CLI invocation layer wraps and uploads a script, the harness serialises the fixture subset dictated by `fixtures.required` (or the full object when no list is provided) and assigns it to `global.ESPRUINO_FIXTURES` within the generated prologue. Tests access their data via that global (for example, `global.ESPRUINO_FIXTURES.wifi`). The final fixture snapshot is appended to the existing execution log for the test (for example, as a JSON block at the end of `results/<timestamp>/<board>/logs/<test>.stdout`), so no additional `.fixtures.json` artifact is produced.
+- Suite (`tests/esp32c3/wifi-station/testConfig.json`):
+  ```json
+  {
+    "suite": "wifi-station",
+    "config": {
+      "fixture": {
+        "required": ["wifi", "wifiInvalid"]
+      }
+    }
+  }
+  ```
+- Test header:
+  ```
+  /* JSON {
+    "fixtures": {
+      "required": ["wifi.ssid", "wifi.password"]
+    }
+  } */
+  ```
 
-Validation hooks can reject fixture overrides that contradict board capabilities, ensuring mismatches surface before the CLI command executes.
+### 7.4 Injection
+Immediately before wrapping the test, the harness serialises the required fixture subset and assigns it to `global.ESPRUINO_FIXTURES`. The final fixture snapshot is recorded within `results/<stamp>/<board>/runner-metadata/<testId>.json`; no separate `.fixtures.json` artefact or log append is produced.
 
-## Operational flow approach
+## 8. Validation Expectations
+The resolver and harness emit diagnostics while merging and executing. Each diagnostic records a `level` (`warning` or `error`), `source` (run, board, suite, test, CLI), `path`, and `message`. Runs halt before execution if any errors are present.
 
-The principal behind building the complete metadata set , containing all types, for the execution of a test can be thought of as a rolling review of metadata definition files, at each layer. In a way that each layer review can add or update specific metadata values. Each subsequent review taking precedence  over any previously established value.  
+### 8.1 Fixture Checks
+- Every required fixture block is present; missing blocks are errors, missing optional leaf keys produce warnings.
+- Placeholders such as empty strings or `"<changeme>"` are flagged when marked mandatory.
 
-## Metadata aquisation workflow.
+### 8.2 CLI Configuration Checks
+- `SAVE_ON_SEND` must be within `{-1,0,1,2,3}`; non-zero values conflicting with board capabilities raise errors.
+- `RESET_BEFORE_SEND` must align with `config.loader.noReset` (set by the harness CLI); conflicting settings generate warnings and favour the loader value.
+- `cliArgs` and `espruinoConfig` entries are deduplicated; malformed `key=value` pairs cause errors.
+- Port overrides are checked against manifest hints; out-of-pattern selections generate warnings.
+- Baud rate overrides must be numeric and remain within manifest-defined ranges.
 
-The meta data definition , building and utilisation process can be summarised with respect to the testing execution workflow as: 
+### 8.3 Loader Checks
+- `timeoutMs`, `preUploadDelayMs`, and `postUploadDelayMs` are validated as non-negative integers and clamped to manifest bounds.
+- Execution order lists declared in suite metadata must reference existing tests exactly once; duplicates or gaps raise errors.
+- Reset conflicts escalate to errors when the manifest marks the reset mandatory; otherwise they produce warnings.
+- Storage preload descriptors must reference existing files; missing assets are fatal unless explicitly flagged optional.
 
-1) Load the EspruinoTools default configuration (EspruinoTools/configDefaults.json) to seed `config.cli` and `config.loader` for the run session.
+### 8.4 Run-session Checks
+- Requested suites must exist; required suites with no discovered tests trigger errors (optional suites raise warnings).
+- The selected board manifest must match `--board`; mismatches abort the run.
+- Fixture provenance is captured so final snapshots show the source of each value when overrides occur.
 
-2) Resolve the selected board manifest. Apply board defaults (suite scope, CLI hints) and load the board fixture catalogue (`fixtures/<board>/base.json`) into `config.fixture`.
+### 8.5 Execution-time Checks
+- Before spawning the Espruino CLI every `config.cli` key is validated against supported `--config` options; unknown keys cause errors.
+- Fixture requirements are rechecked per test; missing prerequisites result in a `SKIP` outcome with an explicit reason.
+- Device output is parsed to ensure JSON payloads are well formed; malformed payloads appear as `invalid_result_json` errors.
+- Storage preload assets are verified for existence, permissions, and manifest-defined size limits.
+- External tools (`espruino`, `esptool.py`, OpenOCD) are verified up front so runs fail fast when dependencies are missing.
 
-3) Apply run-level overrides: `test_config.json` (identified on the command line). Environment fixture profiles are reserved for a future revision; for now any environment-specific tweaks live in the board catalogue or suite overlay. These updates produce the run-specific config object used as the starting point for each suite.
+### 8.6 Discovery & Artefact Checks
+- The discovery phase enforces naming (`test_*.js`), flags duplicate IDs across targets, and warns about empty suites referenced by manifests.
+- After execution the harness confirms that per-test artefacts (wrapped sources, logs, JSON) were written successfully, surfacing permission or disk issues immediately.
 
-4) For each suite, clone the run config, merge suite metadata (`suite_config.json`), and apply any suite fixture overlay (`tests/<suite>/suite.fixtures.json`). Validate suite-level `fixtures.required` declarations at this stage.
+### 8.7 Reporting
+- Diagnostics are persisted next to the resolved configuration (`results/<stamp>/<board>/runner-metadata/<testId>.json`).
+- A consolidated diagnostics summary is emitted before suites execute; any `error` level entry aborts the run.
 
-5) For each test script, merge its JSON header metadata into the suite config. Enforce `fixtures.required` and any other per-test constraints before proceeding.
+## 9. Run Artefacts and Persistence
+Each run writes a predictable artefact set under `results/<timestamp>/<board>/`:
 
-6) Immediately before execution, materialise the final config: wrap the test source, inject `global.ESPRUINO_FIXTURES`, create the Espruino CLI command, and honour configured delays around the invocation.
+```
+results/<timestamp>/<board>/
+├─ sources/<testId>
+├─ logs/
+│  ├─ <testId>.stdout
+│  ├─ <testId>.stderr
+│  ├─ <testId>.storage.stdout (optional)
+│  └─ <testId>.storage.stderr (optional)
+├─ runner-metadata/
+│  └─ <testId>.json
+├─ <suite>.json
+└─ run-summary.json (planned)
+```
 
- 
-## Reference The espruino CLI config flags and defaults in configDefaults.json
- {
+- `sources/<testId>` – wrapped JavaScript with injected fixtures and harness prologue.
+- `logs/<testId>.*` – raw CLI stdout/stderr per invocation; storage preload phases write their own suffixed logs.
+- `runner-metadata/<testId>.json` – resolved configuration, diagnostics, provenance, CLI commands, and artefact references.
+- `<suite>.json` – per-suite summary with pass/fail/skip counts, board metadata, manifest path, and run timestamp.
+- `run-summary.json` (planned) – top-level roll-up spanning all suites executed in the session.
+
+All JSON artefacts follow stable schemas so external tooling can consume them without intimate knowledge of the harness code.
+
+## 10. End-to-end Example
+**Scenario:**
+- Command: `node scripts/run-tests-gordon.js --board ESP32C3 --port /dev/ttyACM0 --suites wifi-station --pre-cli-delay 2000 --no-reset`
+- Run defaults: `preUploadDelayMs=1000`, `postUploadDelayMs=1000`, `timeoutMs=10000`
+- Board manifest: `SAVE_ON_SEND=0`, `ports.baud=115200`, suites `wifi-station`, `wifi-core`
+- Suite config (`testConfig.json`): `preUploadDelayMs=1500`, `timeoutMs=20000`, fixtures `wifi`, `wifiInvalid` required
+- Test metadata (`test_connect_get_ip.js`):
+  ```json
+  {
+    "timeoutMs": 25000,
+    "preUploadDelayMs": 0,
+    "storagePreload": [{ "filename": "wifi.log", "contents": "start" }],
+    "requirements": ["WIFI-CONNECT-001"]
+  }
+  ```
+
+**Merge timeline:**
+
+| Layer | Key contributions | Diagnostics |
+| --- | --- | --- |
+| Run session | `preUploadDelayMs=1000`, `postUploadDelayMs=1000`, `timeoutMs=10000`; fixture file `configs/fixtures.wifi_station.json`. | None |
+| Board profile | `SAVE_ON_SEND=0`, `BAUD_RATE=115200`; default suites. | None |
+| CLI (`--suites`) | Restricts execution to `wifi-station`. | None |
+| Suite config | `preUploadDelayMs=1500`, `timeoutMs=20000`; `fixtures.required=["wifi","wifiInvalid"]`. | None |
+| Test metadata | `timeoutMs=25000`, `preUploadDelayMs=0`; storage preload, requirements. | None |
+| CLI overrides | `preUploadDelayMs=2000`, `noReset=true`, `RESET_BEFORE_SEND=false`, `ports=['/dev/ttyACM0']`. | Warning recorded if metadata had requested a reset (not present). |
+
+**Final config (abridged):**
+```json
+{
+  "fixture": {
+    "wifi": { "ssid": "SHED", "password": "MyGreatShed", "timeoutMs": 25000 },
+    "wifiInvalid": { "enabled": false, "ssid": "SHED", "password": "WRONG" }
+  },
+  "cli": {
+    "ports": ["/dev/ttyACM0"],
+    "SAVE_ON_SEND": 0,
+    "BAUD_RATE": 115200,
+    "RESET_BEFORE_SEND": false,
+    "cliArgs": ["--config", "BAUD_RATE=115200"],
+    "espruinoConfig": []
+  },
+  "loader": {
+    "board": "ESP32C3",
+    "port": "/dev/ttyACM0",
+    "requestedSuites": ["wifi-station"],
+    "preUploadDelayMs": 2000,
+    "postUploadDelayMs": 1000,
+    "timeoutMs": 25000,
+    "noReset": true,
+    "storagePreload": [ { "filename": "wifi.log", "contents": "start" } ],
+    "requirements": ["WIFI-CONNECT-001"]
+  },
+  "diagnostics": [],
+  "provenance": [
+    { "source": "run", "path": "loader.preUploadDelayMs", "value": 1000 },
+    { "source": "suite", "path": "loader.timeoutMs", "value": 20000 },
+    { "source": "test", "path": "loader.timeoutMs", "value": 25000 },
+    { "source": "cli", "path": "loader.preUploadDelayMs", "value": 2000 }
+  ]
+}
+```
+
+This snapshot, alongside diagnostics, is written to `results/<stamp>/ESP32C3/runner-metadata/test_connect_get_ip.js.json` for later analysis.
+
+## 11. Appendix – Espruino CLI Defaults
+For reference, `EspruinoTools/configDefaults.json` ships with the CLI and provides baseline values:
+
+```json
+{
   "baudRate": 0,
   "expr": "",
   "color": false,
@@ -146,3 +393,4 @@ The meta data definition , building and utilisation process can be summarised wi
     "WEB_BLUETOOTH": true
   }
 }
+```
