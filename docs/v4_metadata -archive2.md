@@ -8,12 +8,12 @@ This document captures the v4 metadata model that governs how the Espruino test 
 MyEspruinoTester01/
 ├─ boards/
 │  └─ <board>/
-│     ├─ board.json                    # required board metadata (identity, firmware, flash, suites)
-│     ├─ fixture.json                  # optional fixture catalogue defaults for this board
-│     ├─ cli.json                      # optional board-level CLI defaults (ports, args)
+│     ├─ manifest.json                 # board-specific harness manifest
 │     ├─ README.md                     # reference for board quirks and setup
 │     ├─ cliBoardFiles/                # EspruinoTools board JSON overrides
-│     └─ firmware/<version>/...        # prebuilt Espruino flash firmware bundles
+│     ├─ firmware/<version>/...        # prebuilt Espruino flash firmware bundles
+│     ├─ config/<*.json>               # board overlays merged after the manifest
+│     └─ fixtures/<*.json>             # baseline board fixture catalogues
 ├─ configs/                             # shared run-session defaults / environments
 ├─ docs/                                # specifications, run books, archives
 ├─ lib/                                 # reusable harness source libraries (resolver, discovery, etc.)
@@ -48,13 +48,7 @@ A single harness invocation (“run session”) captures operator intent: reques
 > _Note:_ In EspruinoTools the `configDefaults.json` file is a reference template. The harness may actively load and merge it to establish baseline CLI settings before applying board/suite/test overrides.
 
 ### 4.2 Board Profile
-Each board directory supplies typed metadata files that seed the run configuration:
-
-- `boards/<board>/board.json` (**required**) populates `config.board` with identification, firmware bundle details, flash adapter settings, default and available suites, and any EspruinoTools linkage (for example `localJSON`).
-- `boards/<board>/fixture.json` (**optional**) contributes to `config.fixture`. When absent, the resolver assumes no default fixtures for the board.
-- `boards/<board>/cli.json` (**optional**) contributes to `config.cli` and `config.loader.ports`, allowing baud/port defaults without embedding them in the required board JSON.
-
-Files that are not present are simply skipped, keeping the entry-level experience lightweight. The loader reads each file once, infers its destination branch from the filename, and merges the resulting objects (board → fixture → cli) before moving on to suite metadata. No additional overlay files are supported in v4; board authors should express all defaults inside these typed documents.
+The selected board manifest (`boards/<board>/manifest.json`) provides defaults for suites, port hints, baud rates, and storage policy. It may also seed `config.fixture` by referencing `boards/<board>/fixtures/base.json`. After the manifest loads, the resolver applies any board overlays found in `boards/<board>/config/*.json`, letting maintainers split optional or environment-specific metadata into separate files without redefining the manifest structure. Together, the manifest and overlays form the “board layer” in the precedence chain.
 
 ### 4.3 Suite Layer
 Suites narrow the run session to a functional set of tests. Each suite may ship a `tests/<target>/<suite>/testConfig.json` with the schema below:
@@ -102,7 +96,7 @@ Suites can also define execution order by supplying an `execution.order` array:
 
 The harness maps this list onto the discovered tests (and any shared helpers) to derive the execution sequence. Tests not listed follow deterministic discovery order, and per-test overrides are not supported—suite metadata is the single source of truth for ordering.
 
-Suites should source reusable fixture data from their board profile rather than duplicating JSON. The board-level catalogue (`boards/<board>/fixture.json`) merges automatically into `config.fixture`, letting the resolver share wiring and credential data across suites. When a suite needs custom values, keep them minimal and additive in `testConfig.json` or suite-local assets so future changes to the board fixture stay authoritative.
+Suites should source reusable fixture data from their board profile rather than duplicating JSON. Each board-level fixture catalogue (`boards/<board>/fixtures/*.json`) can be referenced by name inside `config.fixture`, letting the resolver merge the shared data into `global.ESPRUINO_FIXTURES`. When a suite needs custom values, keep them minimal and additive in `testConfig.json` or suite-local assets so future changes to the board fixture stay authoritative.
 
 ### 4.4 Test Script Layer
 Individual `test_*.js` files contribute metadata through an opening `/* JSON { … } */` comment. Common keys include `timeoutMs`, `preUploadDelayMs`, `storagePreload`, `cliArgs`, `espruinoConfig`, `fixtures.required`, and `requirements`. The harness parses the header, merges it into the suite-level `config`, and validates the result before scheduling the CLI upload.
@@ -123,7 +117,7 @@ The invocation layer also persists artefacts described in §8.
 
 ### 4.7 Metadata Acquisition Workflow Summary
 1. Load shared defaults (including `configDefaults.json`) to seed the run-session `config`.
-2. Load `boards/<board>/board.json`, then merge any optional siblings (`fixture.json`, `cli.json`) to seed `config.board`, `config.fixture`, and `config.cli`.
+2. Merge the board manifest, then apply any board overlays (`boards/<board>/config/*.json`) and board-level fixtures.
 3. Apply run-level overrides declared on the harness CLI (fixture file selection, suites, output dir).
 4. For each suite, clone the run config, merge `testConfig.json`, and apply any suite fixture overlay. Validate suite-level `fixtures.required` at this stage.
 5. For each test, merge metadata from the JSON header, validate requirements, and collect diagnostics.
@@ -136,9 +130,9 @@ The harness exposes a small set of CLI switches. These belong to the **harness C
 
 | Flag | Destination | Notes |
 | --- | --- | --- |
-| `--board <id>` | `config.loader.board` | Also determines the board profile. Missing `boards/<board>/board.json` aborts the run. |
+| `--board <id>` | `config.loader.board` | Also determines the board manifest. Conflicting metadata aborts the run. |
 | `--port <tty>` | `config.loader.port`, `config.cli.ports[0]` | Additional `--port` flags append to the ports array in order supplied. |
-| `--suites a,b` | `config.loader.requestedSuites` | Bypasses board defaults; unknown suite names trigger a fatal error. |
+| `--suites a,b` | `config.loader.requestedSuites` | Bypasses manifest defaults; unknown suite names trigger a fatal error. |
 | `--fixtures <path>` | `config.fixtureSource` (merged into `config.fixture`) | Supplies the top-level fixture document; lower layers can still override branches. |
 | `--pre-cli-delay <ms>` | `config.loader.preUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
 | `--post-cli-delay <ms>` | `config.loader.postUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
@@ -151,7 +145,7 @@ Collisions occur when two layers assign competing values to the same configurati
 
 - Scalar fields (`preUploadDelayMs`, `timeoutMs`, `noReset`, `RESET_BEFORE_SEND`) are replaced outright by the CLI value.
 - Array fields (`ports`, `cliArgs`, `espruinoConfig`, `storagePreload`) follow the merge behaviour defined in §6.
-- When a CLI override makes earlier metadata impossible (for example, `--no-reset` against a mandatory reset), the resolver records a warning and honours the CLI directive unless the board profile marks the behaviour as fatal.
+- When a CLI override makes earlier metadata impossible (for example, `--no-reset` against a mandatory reset), the resolver records a warning and honours the CLI directive unless the board manifest marks the behaviour as fatal.
 
 ## 6. Merge Behaviour and Precedence
 The resolver applies a last-writer-wins policy by default: unknown keys are added; scalar values and objects are replaced when new values arrive. Arrays have explicit exceptions to avoid clobbering necessary data.
@@ -192,10 +186,10 @@ Fixture documents are JSON objects whose top-level keys group related values (fo
   }
 }
 ```
-This example matches the shape of `boards/<board>/fixture.json`. Files loaded from the fixture pipeline always expose the fixture keys at the top level. When a layer such as a board profile or suite config wants to inline fixture overrides, it nests them under the `config.fixture` branch (see §4.3) so the resolver can merge the standalone catalogue and the inline patches into the same tree.
+This example shows the shape of standalone fixture catalogues such as `boards/<board>/fixtures/base.json`. Files loaded from the fixture pipeline always expose the fixture keys at the top level. When a layer such as a board manifest or suite config wants to inline fixture overrides, it nests them under the `config.fixture` branch (see §4.3) so the resolver can merge the standalone catalogue and the inline patches into the same tree.
 
 ### 7.2 Sources and Overlays
-- **Board catalogue:** `boards/<board>/fixture.json` seeds defaults such as wiring, storage slots, and immutable transport credentials when present.
+- **Board catalogue:** all `boards/<board>/fixtures/*.json` files are loaded (typically starting with `base.json`) to capture wiring, storage slots, and immutable transport credentials.
 - **Suite overlay:** `tests/<suite>/suite.fixtures.json` (optional) extends or overrides board catalogues to enforce suite-specific requirements.
 - **Run-session fixture file:** selected via `--fixtures <path>`; typically references `configs/fixtures.<env>.json`.
 - **Test metadata:** individual scripts can tweak fixture values in their header when they require bespoke inputs.
@@ -239,29 +233,29 @@ The resolver and harness emit diagnostics while merging and executing. Each diag
 - `SAVE_ON_SEND` must be within `{-1,0,1,2,3}`; non-zero values conflicting with board capabilities raise errors.
 - `RESET_BEFORE_SEND` must align with `config.loader.noReset` (set by the harness CLI); conflicting settings generate warnings and favour the loader value.
 - `cliArgs` and `espruinoConfig` entries are deduplicated; malformed `key=value` pairs cause errors.
-- Port overrides are checked against board-provided hints; out-of-pattern selections generate warnings.
-- Baud rate overrides must be numeric and remain within board-defined ranges.
+- Port overrides are checked against manifest hints; out-of-pattern selections generate warnings.
+- Baud rate overrides must be numeric and remain within manifest-defined ranges.
 
 ### 8.3 Loader Checks
-- `timeoutMs`, `preUploadDelayMs`, and `postUploadDelayMs` are validated as non-negative integers and clamped to board-defined bounds.
+- `timeoutMs`, `preUploadDelayMs`, and `postUploadDelayMs` are validated as non-negative integers and clamped to manifest bounds.
 - Execution order lists declared in suite metadata must reference existing tests exactly once; duplicates or gaps raise errors.
-- Reset conflicts escalate to errors when the board profile marks the reset mandatory; otherwise they produce warnings.
+- Reset conflicts escalate to errors when the manifest marks the reset mandatory; otherwise they produce warnings.
 - Storage preload descriptors must reference existing files; missing assets are fatal unless explicitly flagged optional.
 
 ### 8.4 Run-session Checks
 - Requested suites must exist; required suites with no discovered tests trigger errors (optional suites raise warnings).
-- The selected board profile must match `--board`; mismatches abort the run.
+- The selected board manifest must match `--board`; mismatches abort the run.
 - Fixture provenance is captured so final snapshots show the source of each value when overrides occur.
 
 ### 8.5 Execution-time Checks
 - Before spawning the Espruino CLI every `config.cli` key is validated against supported `--config` options; unknown keys cause errors.
 - Fixture requirements are rechecked per test; missing prerequisites result in a `SKIP` outcome with an explicit reason.
 - Device output is parsed to ensure JSON payloads are well formed; malformed payloads appear as `invalid_result_json` errors.
-- Storage preload assets are verified for existence, permissions, and board-defined size limits.
+- Storage preload assets are verified for existence, permissions, and manifest-defined size limits.
 - External tools (`espruino`, `esptool.py`, OpenOCD) are verified up front so runs fail fast when dependencies are missing.
 
 ### 8.6 Discovery & Artefact Checks
-- The discovery phase enforces naming (`test_*.js`), flags duplicate IDs across targets, and warns about empty suites referenced by board profiles.
+- The discovery phase enforces naming (`test_*.js`), flags duplicate IDs across targets, and warns about empty suites referenced by manifests.
 - After execution the harness confirms that per-test artefacts (wrapped sources, logs, JSON) were written successfully, surfacing permission or disk issues immediately.
 
 ### 8.7 Reporting
@@ -288,17 +282,16 @@ results/<timestamp>/<board>/
 - `sources/<testId>` – wrapped JavaScript with injected fixtures and harness prologue.
 - `logs/<testId>.*` – raw CLI stdout/stderr per invocation; storage preload phases write their own suffixed logs.
 - `runner-metadata/<testId>.json` – resolved configuration, diagnostics, provenance, CLI commands, and artefact references.
-- `<suite>.json` – per-suite summary with pass/fail/skip counts, board metadata, board file path, and run timestamp.
+- `<suite>.json` – per-suite summary with pass/fail/skip counts, board metadata, manifest path, and run timestamp.
 - `run-summary.json` (planned) – top-level roll-up spanning all suites executed in the session.
 
 All JSON artefacts follow stable schemas so external tooling can consume them without intimate knowledge of the harness code.
 
 ## 10. End-to-end Example
 **Scenario:**
-- Command: `node scripts/run-tests-gordonV4.js --board ESP32C3 --port /dev/ttyACM0 --suites wifi-station --pre-cli-delay 2000 --no-reset`
+- Command: `node scripts/run-tests-gordon.js --board ESP32C3 --port /dev/ttyACM0 --suites wifi-station --pre-cli-delay 2000 --no-reset`
 - Run defaults: `preUploadDelayMs=1000`, `postUploadDelayMs=1000`, `timeoutMs=10000`
-- Board profile (`boards/ESP32C3/board.json`): `SAVE_ON_SEND=0`, default suites `wifi-station`, `wifi-core`
-- Board CLI defaults (`boards/ESP32C3/cli.json`): `ports.serial=["/dev/ttyUSB*","/dev/ttyACM*"]`, `ports.baud=115200`
+- Board manifest: `SAVE_ON_SEND=0`, `ports.baud=115200`, suites `wifi-station`, `wifi-core`
 - Suite config (`testConfig.json`): `preUploadDelayMs=1500`, `timeoutMs=20000`, fixtures `wifi`, `wifiInvalid` required
 - Test metadata (`test_connect_get_ip.js`):
   ```json
@@ -315,8 +308,7 @@ All JSON artefacts follow stable schemas so external tooling can consume them wi
 | Layer | Key contributions | Diagnostics |
 | --- | --- | --- |
 | Run session | `preUploadDelayMs=1000`, `postUploadDelayMs=1000`, `timeoutMs=10000`; fixture file `configs/fixtures.wifi_station.json`. | None |
-| Board profile | `SAVE_ON_SEND=0`; default suites. | None |
-| Board CLI defaults | `BAUD_RATE=115200`; serial glob hints. | None |
+| Board profile | `SAVE_ON_SEND=0`, `BAUD_RATE=115200`; default suites. | None |
 | CLI (`--suites`) | Restricts execution to `wifi-station`. | None |
 | Suite config | `preUploadDelayMs=1500`, `timeoutMs=20000`; `fixtures.required=["wifi","wifiInvalid"]`. | None |
 | Test metadata | `timeoutMs=25000`, `preUploadDelayMs=0`; storage preload, requirements. | None |
@@ -407,34 +399,3 @@ For reference, `EspruinoTools/configDefaults.json` ships with the CLI and provid
   }
 }
 ```
-
-## 12. Appendix – Migration Notes (v3 → v4)
-The legacy harness expects `boards/<board>.json` to contain every board detail. Moving to the typed directory layout requires coordinated code, data, and documentation updates. The sections below summarise the key touchpoints and offer an execution checklist.
-
-### 12.1 Current Loader Touchpoints
-- `lib/manifest.js` lists boards, resolves paths, loads JSON, and exposes helpers such as `resolveFirmware` and `resolveSuites`.
-- Runner CLIs (`scripts/run-tests.js`, `scripts/run-tests-espruino.js`, `scripts/run-tests-gordon.js`) consume the manifest object directly for ports, suites, upstream ID, and optional `localJSON`.
-- Support tooling (`scripts/flash.js`, `scripts/dry-run.js`, `scripts/run-node-baseline.js`) relies on the same schema when choosing flash adapters, firmware bundles, and logging manifest paths.
-- Tests under `lib/__tests__` stub manifests and will need fixture updates to reflect the new layout.
-
-### 12.2 Fields To Remap
-Map each legacy manifest branch into the new typed files:
-
-| Legacy field | New location |
-| --- | --- |
-| `board`, `description`, `upstream`, `firmware`, `flash`, `suites`, `localJSON` | `boards/<board>/board.json` |
-| `ports`, CLI defaults (`RESET_BEFORE_SEND`, `cliArgs`, etc.) | `boards/<board>/cli.json` |
-| `fixtures` and other board-level constants | `boards/<board>/fixture.json` |
-
-Ensure relative path logic (for example, resolving `localJSON` next to the board file) still functions after the move.
-
-### 12.3 Migration Steps
-1. **Create board directory:** move `boards/<board>.json` to `boards/<board>/board.json` and update any scripts that glob manifests.
-2. **Extract fixtures:** copy fixture branches into `boards/<board>/fixture.json` when needed; omit the file entirely for boards without defaults.
-3. **Extract CLI defaults:** move port patterns, baud rate, and Espruino CLI hints into `boards/<board>/cli.json` so `board.json` remains identity/firmware focused.
-4. **Update loaders:** teach the new `run-tests-gordonV4.js` (and the helper modules it depends on) to load `board.json`, then merge `fixture.json` and `cli.json` if they exist. Apply the same logic to `flash.js`, `dry-run.js`, and other CLIs; v4 does not provide a compatibility shim, so the new layout must be in place before enabling these loaders.
-5. **Refresh tests:** adjust unit fixtures and mocks to load the new files. Add coverage to ensure missing optional files are handled gracefully.
-6. **Align documentation:** update run books, developer notes, and any external docs that reference the old manifest path.
-7. **Validate end-to-end:** run `scripts/dry-run.js` (or the new runner) across each board to verify firmware resolution, suite discovery, and CLI arguments.
-
-Once all boards adopt the directory layout and the v4 loader is in place, delete any remaining flat `boards/<board>.json` files to prevent drift.

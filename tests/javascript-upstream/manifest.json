@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "order": [
+    "test_constructor.js",
+    "test_array_concat.js",
+    "test_eval.js",
+    "test_array_reduce.js",
+    "test_function_apply.js"
+  ]
+}

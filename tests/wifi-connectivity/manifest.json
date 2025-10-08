@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "order": [
+    "test_wifi_module_present.js",
+    "test_wifi_scan_basic.js",
+    "test_wifi_api_methods.js"
+  ]
+}
