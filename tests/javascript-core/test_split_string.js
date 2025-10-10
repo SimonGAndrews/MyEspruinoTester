@@ -1,3 +1,13 @@
+/* JSON {
+  "config": {
+    "cli": {
+      "cliArgs": ["--config", "STORE_LINE_NUMBERS=false"],
+      "espruinoConfig": [
+        { "key": "STORE_LINE_NUMBERS", "value": false }
+      ]
+    }
+  }
+} */
 // String split/join checks (sync)
 var s = 'alpha,beta,gamma';
 var parts = s.split(',');

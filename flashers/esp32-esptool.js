@@ -6,6 +6,7 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
+const { resolvePortPattern } = require('../lib/util/serial');
 // No host GPIO helpers
 
 /**
@@ -161,10 +162,11 @@ async function flash({
 
   const flashConfig = manifest.flash || {};
   const command = esptoolPath || process.env.ESPTOOL || 'esptool.py';
-  const resolvedPort = port || (manifest?.ports?.serial?.[0]);
+  let resolvedPort = port || (manifest?.ports?.serial?.[0]);
   if (!resolvedPort) {
     throw new Error('Serial port not provided and no default available in manifest. Use --port <device>.');
   }
+  resolvedPort = resolvePortPattern(resolvedPort, logger);
   if (resolvedPort.includes('*')) {
     logger.warn?.('[flasher] Warning: selected serial port contains wildcard; consider specifying --port explicitly.');
   }

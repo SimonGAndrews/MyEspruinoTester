@@ -9,6 +9,8 @@ const os = require('os');
 const { spawn } = require('child_process');
 
 const { REPO_ROOT, loadManifest, resolveSuites } = require('../lib/manifest');
+const { resolvePortPattern } = require('../lib/util/serial');
+const { loadBoardProfile, boardProfileToLegacy } = require('../lib/v4/boardProfile');
 const { resolveSuiteTests } = require('../lib/tests');
 
 function parseArgs(argv) {
@@ -106,19 +108,32 @@ async function run() {
   }
 
   let manifest; let manifestPath;
-  try {
-    const loaded = loadManifest(board, REPO_ROOT);
-    manifest = loaded.manifest; manifestPath = loaded.manifestPath;
-  } catch (e) {
-    console.error(`Error: ${e.message}`);
-    process.exit(1);
+  const legacyManifestPath = path.join(REPO_ROOT, 'boards', `${board}.json`);
+  if (fs.existsSync(legacyManifestPath)) {
+    try {
+      const loaded = loadManifest(board, REPO_ROOT);
+      manifest = loaded.manifest; manifestPath = loaded.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  } else {
+    try {
+      const profile = loadBoardProfile(board, REPO_ROOT);
+      const legacy = boardProfileToLegacy(profile);
+      manifest = legacy.manifest; manifestPath = legacy.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
   }
 
-  const port = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
-  if (!port) {
+  const portCandidate = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
+  if (!portCandidate) {
     console.error('Error: --port <tty> is required (manifest contains wildcards).');
     process.exit(1);
   }
+  const port = resolvePortPattern(portCandidate, console);
 
   const suitesInfo = resolveSuites(manifest, args.suites);
   if (suitesInfo.unknown?.length) {

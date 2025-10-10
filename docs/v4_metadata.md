@@ -53,6 +53,7 @@ Each board directory supplies typed metadata files that seed the run configurati
 - `boards/<board>/board.json` (**required**) populates `config.board` with identification, firmware bundle details, flash adapter settings, default and available suites, and any EspruinoTools linkage (for example `localJSON`).
 - `boards/<board>/fixture.json` (**optional**) contributes to `config.fixture`. When absent, the resolver assumes no default fixtures for the board.
 - `boards/<board>/cli.json` (**optional**) contributes to `config.cli` and `config.loader.ports`, allowing baud/port defaults without embedding them in the required board JSON.
+- Board metadata may also establish default artefact persistence under `config.loader.output` (see §9.5) so noisy directories can be trimmed when necessary.
 
 Files that are not present are simply skipped, keeping the entry-level experience lightweight. The loader reads each file once, infers its destination branch from the filename, and merges the resulting objects (board → fixture → cli) before moving on to suite metadata. No additional overlay files are supported in v4; board authors should express all defaults inside these typed documents.
 
@@ -100,7 +101,7 @@ Suites can also define execution order by supplying an `execution.order` array:
 }
 ```
 
-The harness maps this list onto the discovered tests (and any shared helpers) to derive the execution sequence. Tests not listed follow deterministic discovery order, and per-test overrides are not supported—suite metadata is the single source of truth for ordering.
+The harness maps this list onto the discovered tests (and any shared helpers) to derive the execution sequence. After visiting the listed files in order, any remaining `test_*.js` files are appended using deterministic discovery order. Per-test overrides are not supported—suite metadata is the single source of truth for ordering.
 
 Suites should source reusable fixture data from their board profile rather than duplicating JSON. The board-level catalogue (`boards/<board>/fixture.json`) merges automatically into `config.fixture`, letting the resolver share wiring and credential data across suites. When a suite needs custom values, keep them minimal and additive in `testConfig.json` or suite-local assets so future changes to the board fixture stay authoritative.
 
@@ -167,6 +168,7 @@ The resolver applies a last-writer-wins policy by default: unknown keys are adde
 | `config.fixture.*` | Replace per key | Entire fixture sub-objects (e.g., `wifi`) are replaced by later layers. |
 | `config.loader.execution.order` | Replace | Suite metadata is authoritative for ordering; tests not listed follow deterministic discovery order. |
 | `config.loader.requirements` | Replace | Per-test metadata is authoritative. |
+| `config.loader.output.writeSources`, `config.loader.output.writeLogs`, `config.loader.output.writeMetadata` | Replace | Boolean flags that toggle the persistence of sources, raw logs, and per-test metadata files. Defaults are `true` when unspecified. |
 
 Resulting precedence order: **run session defaults → board profile → suite overrides → test metadata → harness CLI flags.**
 
@@ -255,7 +257,7 @@ The resolver and harness emit diagnostics while merging and executing. Each diag
 
 ### 8.5 Execution-time Checks
 - Before spawning the Espruino CLI every `config.cli` key is validated against supported `--config` options; unknown keys cause errors.
-- Fixture requirements are rechecked per test; missing prerequisites result in a `SKIP` outcome with an explicit reason.
+- Fixture requirements are rechecked per test; missing prerequisites force a `FAIL` outcome with the first missing path recorded as the reason.
 - Device output is parsed to ensure JSON payloads are well formed; malformed payloads appear as `invalid_result_json` errors.
 - Storage preload assets are verified for existence, permissions, and board-defined size limits.
 - External tools (`espruino`, `esptool.py`, OpenOCD) are verified up front so runs fail fast when dependencies are missing.
@@ -285,13 +287,46 @@ results/<timestamp>/<board>/
 └─ run-summary.json (planned)
 ```
 
-- `sources/<testId>` – wrapped JavaScript with injected fixtures and harness prologue.
-- `logs/<testId>.*` – raw CLI stdout/stderr per invocation; storage preload phases write their own suffixed logs.
-- `runner-metadata/<testId>.json` – resolved configuration, diagnostics, provenance, CLI commands, and artefact references.
-- `<suite>.json` – per-suite summary with pass/fail/skip counts, board metadata, board file path, and run timestamp.
-- `run-summary.json` (planned) – top-level roll-up spanning all suites executed in the session.
+### `sources/<testId>`
+- Wrapped JavaScript exactly as submitted to EspruinoTools (`-e` payload), including:
+  - Prologue with timeout/fixture injection.
+  - Original test source (minus leading metadata comment).
+  - Epilogue that polls `result` and prints the JSON sentinel.
+- Useful for replaying the upload outside the harness or diffing injected fixtures.
+
+### `logs/<testId>.stdout` / `logs/<testId>.stderr`
+- Raw EspruinoTools stdout/stderr.
+- Contains console banners, upload progress, JSON sentinel, and (for failures) any diagnostic noise the harness prints (for example raw CLI output when `no_result` occurs).
+- Storage preload stages write additional suffixed logs (for example `.storage.stdout`) so diagnostics remain isolated.
+
+### `runner-metadata/<testId>.json`
+- Resolved configuration after all layers merge. CLI defaults pulled from `EspruinoTools/configDefaults.json` are filtered so only overrides remain; fixture data reflects the merged tree that was injected into the device.
+- Provenance entries capture `{source, path, value}` in merge order, showing whether a surviving value came from session defaults, board profile, suite metadata, test header, or CLI overrides. When multiple layers touch the same field (for example `cli.ports` or `cli.cliArgs`) successive entries form a readable audit trail explaining the final value.
+- `diagnostics` records validation warnings/errors emitted during merge or execution.
+- `cliCommand` is the literal argument vector used to spawn EspruinoTools, making the test run replayable even if defaults are hidden elsewhere.
+- `artefacts` lists helper paths (`sources/<testId>`, `logs/<testId>.*`, etc.) so downstream tooling can navigate the run output without hard-coded directory knowledge.
+
+### `<suite>.json`
+- Per-suite roll-up produced after execution.
+- Contains:
+  - `board`, `port`, and `suite` identifiers.
+  - `when` timestamp (ISO-like `YYYYMMDD-HHmmss`).
+  - `summary` with pass/fail/skip counts and per-test stats.
+  - `boardFiles` echoing the board metadata sources for traceability.
+
+### `run-summary.json` (planned)
+- Not emitted yet; placeholder for a future top-level roll-up spanning every suite in the invocation.
 
 All JSON artefacts follow stable schemas so external tooling can consume them without intimate knowledge of the harness code.
+
+### 9.5 Controlling Artefact Output
+The harness honours `config.loader.output` booleans to suppress specific artefacts:
+
+- `config.loader.output.writeSources` (default `true`) – when `false`, skips writing `sources/<testId>`.
+- `config.loader.output.writeLogs` (default `true`) – when `false`, omits `logs/<testId>.stdout` and `logs/<testId>.stderr`.
+- `config.loader.output.writeMetadata` (default `true`) – when `false`, suppresses `runner-metadata/<testId>.json`.
+
+Regardless of these flags, suite-level JSON summaries are always produced so downstream automation can track aggregate results.
 
 ## 10. End-to-end Example
 **Scenario:**

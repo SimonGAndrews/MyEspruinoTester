@@ -1,4 +1,4 @@
-# v4 metadata specification notes
+# v4 metadata specification notes - Archive version not final
 
 ## Revised test harness structure
 

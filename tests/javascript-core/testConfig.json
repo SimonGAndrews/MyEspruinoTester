@@ -1,0 +1,36 @@
+{
+  "suite": "testConfig.json",
+  "metadataVersion": 1,
+  "execution": {
+    "order": [
+      "test_async_timeout.js",
+      "test_split_string.js",
+      "../generic/test_abstract_comparison.js",
+      "test_store_cli_config.js"
+    ]
+  },
+  "config": {
+    "loader": {
+      "preUploadDelayMs": 1500,
+      "timeoutMs": 20000
+    },
+    "cli": {
+      "RESET_BEFORE_SEND": true
+    },
+    "fixture": {
+      "wifi": {
+        "ssid": "SUITE_WIFI",
+        "password": "SUITE_PASSWORD",
+        "wifiInvalid": {
+          "ssid": "SUITE_WIFI",
+          "password": "WRONG"
+        }
+      },
+      "required": [
+        "wifi.ssid",
+        "wifi.password"
+      ]
+    }
+  },
+  "notes": "Defaults applied to every wifi-station test. Missing test_add_numbers.js"
+}

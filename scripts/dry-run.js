@@ -4,7 +4,16 @@
 // Validates board manifests, test suite selections, and firmware bundle presence
 // without opening devices or flashing. Shared helpers come from lib/manifest.js.
 
-const { REPO_ROOT, listBoards, loadManifest, resolveSuites, resolveFirmware } = require('../lib/manifest');
+const fs = require('fs');
+const path = require('path');
+const {
+  REPO_ROOT,
+  listBoards: listLegacyBoards,
+  loadManifest,
+  resolveSuites,
+  resolveFirmware,
+} = require('../lib/manifest');
+const { listBoards: listV4Boards, loadBoardProfile } = require('../lib/v4/boardProfile');
 
 /**
  * Normalize CLI --kebab-case to camelCase keys.
@@ -103,7 +112,9 @@ function main() {
   }
 
   if (args.list) {
-    const boards = listBoards(repoRoot);
+    const boards = Array.from(
+      new Set([...listLegacyBoards(repoRoot), ...listV4Boards(repoRoot)])
+    ).sort();
     console.log('Available boards:');
     boards.forEach(name => console.log(`  - ${name}`));
     process.exit(0);
@@ -118,10 +129,22 @@ function main() {
 
   let manifest;
   let manifestPath;
+  let profile = null;
+  const boardDir = path.join(repoRoot, 'boards', boardName);
   try {
-    const loaded = loadManifest(boardName, repoRoot);
-    manifest = loaded.manifest;
-    manifestPath = loaded.manifestPath;
+    if (
+      fs.existsSync(boardDir) &&
+      fs.statSync(boardDir).isDirectory() &&
+      fs.existsSync(path.join(boardDir, 'board.json'))
+    ) {
+      profile = loadBoardProfile(boardName, repoRoot);
+      manifest = profile.config.board;
+      manifestPath = profile.files.board;
+    } else {
+      const loaded = loadManifest(boardName, repoRoot);
+      manifest = loaded.manifest;
+      manifestPath = loaded.manifestPath;
+    }
   } catch (err) {
     console.error(`Error: ${err.message}`);
     process.exit(1);
@@ -143,12 +166,17 @@ function main() {
     suites: suitesInfo.requested,
     availableSuites: suitesInfo.available,
     firmware: firmwareInfo,
+    boardFiles: profile ? profile.files : null,
   };
 
   console.log('Dry Run Summary');
   console.log('================');
   console.log(`Board:           ${summary.board}`);
   console.log(`Manifest:        ${summary.manifestPath}`);
+  if (summary.boardFiles) {
+    if (summary.boardFiles.fixture) console.log(`Fixture:         ${summary.boardFiles.fixture}`);
+    if (summary.boardFiles.cli) console.log(`CLI defaults:    ${summary.boardFiles.cli}`);
+  }
   console.log(`Suites:          ${summary.suites.join(', ') || '(none)'}`);
   console.log(`Available suites:${summary.availableSuites.join(', ') || '(none)'}`);
 

@@ -1,0 +1,24 @@
+{
+  "metadataVersion": 1,
+  "cli": {
+    "SAVE_ON_SEND": 0,
+    "cliArgs": [
+      "--no-ble"
+    ],
+    "espruinoConfig": [
+      {
+        "key": "DISABLE_NOBLE",
+        "value": true
+      }
+    ]
+  },
+  "loader": {
+    "ports": {
+      "serial": [
+        "/dev/ttyACM*",
+        "/dev/ttyUSB*"
+      ],
+      "baud": 115200
+    }
+  }
+}

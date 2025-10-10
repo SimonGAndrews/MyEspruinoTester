@@ -1,4 +1,4 @@
-# Espruino Test Harness v4 – Metadata Specification
+# Espruino Test Harness v4 – Metadata Specification - Archive version not final 
 
 ## 1. Overview
 This document captures the v4 metadata model that governs how the Espruino test harness configures, executes, and records test runs. It describes the repository layout, the configuration object exposed to the harness (“config”), the layering and precedence rules that build that object, validation expectations, and the artefacts emitted after each run. The goal is to provide a stable foundation for future automation while keeping Gordon’s original tooling usable.

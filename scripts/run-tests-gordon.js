@@ -8,6 +8,8 @@ const os = require('os');
 const { spawn } = require('child_process');
 
 const { REPO_ROOT, loadManifest, resolveSuites } = require('../lib/manifest');
+const { resolvePortPattern } = require('../lib/util/serial');
+const { loadBoardProfile, boardProfileToLegacy } = require('../lib/v4/boardProfile');
 const { resolveSuiteTests } = require('../lib/tests');
 
 const DEFAULT_TIMEOUT_MS = 10000;
@@ -508,16 +510,28 @@ async function run() {
 
   // Load board manifest metadata (suites, defaults, etc.).
   let manifest; let manifestPath;
-  try {
-    const loaded = loadManifest(board, REPO_ROOT);
-    manifest = loaded.manifest; manifestPath = loaded.manifestPath;
-  } catch (e) {
-    console.error(`Error: ${e.message}`); process.exit(1);
+  const legacyManifestPath = path.join(REPO_ROOT, 'boards', `${board}.json`);
+  if (fs.existsSync(legacyManifestPath)) {
+    try {
+      const loaded = loadManifest(board, REPO_ROOT);
+      manifest = loaded.manifest; manifestPath = loaded.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`); process.exit(1);
+    }
+  } else {
+    try {
+      const profile = loadBoardProfile(board, REPO_ROOT);
+      const legacy = boardProfileToLegacy(profile);
+      manifest = legacy.manifest; manifestPath = legacy.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`); process.exit(1);
+    }
   }
 
   // Choose serial port either from CLI flag or manifest default.
-  const port = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
-  if (!port) { console.error('Error: --port <tty> is required'); process.exit(1); }
+  const portCandidate = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
+  if (!portCandidate) { console.error('Error: --port <tty> is required'); process.exit(1); }
+  const port = resolvePortPattern(portCandidate, console);
 
   // Work out which suites to execute and resolve to file list.
   const suitesInfo = resolveSuites(manifest, args.suites);

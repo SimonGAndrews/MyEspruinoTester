@@ -1,0 +1,14 @@
+{
+  "wifi": {
+    "ssid": "TEST_SSID",
+    "password": "TEST_PASSWORD",
+    "wifi": {
+      "ssid": "TEST_SSID",
+      "password": "TEST_PASSWORD"
+    },
+    "wifiInvalid": {
+      "ssid": "TEST_SSID",
+      "password": "WRONG_PASSWORD"
+    }
+  }
+}

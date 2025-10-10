@@ -1,11 +1,12 @@
 {
+  "metadataVersion": 1,
   "board": "ESP32C3_IDF4",
-  "description": "ESP32-C3 USB/serial harness manifest for Espruino testing",
+  "description": "ESP32-C3 USB/serial harness profile for Espruino testing",
   "upstream": {
     "id": "ESP32C3_IDF4",
     "binary": "espruino_%v_esp32c3.bin"
   },
-  "localJSON": "../boards/cliBoardFiles/ESP32C3_IDF4.json",
+  "localJSON": "../cliBoardFiles/ESP32C3_IDF4.json",
   "firmware": {
     "pattern": "espruino_%v_esp32c3.bin",
     "artifacts": [
@@ -39,17 +40,6 @@
       "hard_reset"
     ],
     "_notes_reset": "Default uses USB Serial-JTAG (usb_reset). For UART DTR/RTS, set extraArgs to ['--before','default_reset','--after','hard_reset'] and use /dev/ttyUSB*."
-  },
-  "ports": {
-    "serial": [
-      "/dev/ttyACM*",
-      "/dev/ttyUSB*"
-    ],
-    "baud": 115200
-  },
-  "fixtures": {
-    "wifi": "default",
-    "peripherals": []
   },
   "suites": {
     "default": [

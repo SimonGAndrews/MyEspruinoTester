@@ -11,6 +11,8 @@ const fs = require('fs');
 const path = require('path');
 const { REPO_ROOT, loadManifest, resolveSuites } = require('../lib/manifest');
 const { resolveSuiteTests } = require('../lib/tests');
+const { resolvePortPattern } = require('../lib/util/serial');
+const { loadBoardProfile, boardProfileToLegacy } = require('../lib/v4/boardProfile');
 
 function normalizeKey(key) {
   return key.split('-').map((p,i)=> i? p.charAt(0).toUpperCase()+p.slice(1):p).join('');
@@ -133,7 +135,7 @@ function composeWrappedTest(fileId, src, timeoutSec, contextInjection) {
 }
 
 // Run one test using the Espruino CLI to keep a persistent session per test
-async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=false, contextInjection='') {
+async function runOneTest(E, port, testPath, manifest, manifestPath, boardName, timeoutMs=15000, quiet=false, contextInjection='') {
   const { spawn } = require('child_process');
   const src = fs.readFileSync(testPath,'utf8');
   const fileId = path.basename(testPath);
@@ -158,7 +160,7 @@ async function runOneTest(E, port, testPath, manifest, timeoutMs=15000, quiet=fa
       }
       boardJsonOverride = resolved;
     }
-    const boardArg = process.env.ESPRUINO_BOARD || boardJsonOverride || (manifest && manifest.upstream && manifest.upstream.id) || board;
+    const boardArg = process.env.ESPRUINO_BOARD || boardJsonOverride || (manifest && manifest.upstream && manifest.upstream.id) || boardName;
     if (boardArg) args.push('--board', boardArg);
     const child = spawn(cmd, args, { stdio: ['ignore','pipe','pipe'] });
     let out=''; let err='';
@@ -215,19 +217,31 @@ async function main() {
     }
   }
 
-  let manifest, manifestPath;
-  try {
-    const loaded = loadManifest(board, REPO_ROOT);
-    manifest = loaded.manifest; manifestPath = loaded.manifestPath;
-  } catch (e) {
-    console.error(`Error: ${e.message}`); process.exit(1);
+  let manifest; let manifestPath;
+  const legacyManifestPath = path.join(REPO_ROOT, 'boards', `${board}.json`);
+  if (fs.existsSync(legacyManifestPath)) {
+    try {
+      const loaded = loadManifest(board, REPO_ROOT);
+      manifest = loaded.manifest; manifestPath = loaded.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`); process.exit(1);
+    }
+  } else {
+    try {
+      const profile = loadBoardProfile(board, REPO_ROOT);
+      const legacy = boardProfileToLegacy(profile);
+      manifest = legacy.manifest; manifestPath = legacy.manifestPath;
+    } catch (e) {
+      console.error(`Error: ${e.message}`); process.exit(1);
+    }
   }
 
-  const port = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
-  if (!port) {
+  const portCandidate = args.port || (manifest?.ports?.serial?.find(p=>!p.includes('*')));
+  if (!portCandidate) {
     console.error('Error: --port <tty> is required (manifest contains wildcards).');
     process.exit(1);
   }
+  const port = resolvePortPattern(portCandidate, console);
 
   const suitesInfo = resolveSuites(manifest, args.suites);
   if (suitesInfo.unknown?.length) {
@@ -260,7 +274,7 @@ async function main() {
     process.stdout.write(`Running ${t.id} ... `);
     try {
       const suiteTimeout = t.suite === 'wifi-station' ? 30000 : 15000;
-      const res = await runOneTest(E, port, t.path, manifest, suiteTimeout, Boolean(args.quiet), fixtureInjection);
+      const res = await runOneTest(E, port, t.path, manifest, manifestPath, board, suiteTimeout, Boolean(args.quiet), fixtureInjection);
       results.push(res); pairs.push({ test: t, res });
       if (res.status === 'skip') {
         skipCount++;

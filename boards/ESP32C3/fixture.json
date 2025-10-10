@@ -1,0 +1,7 @@
+{
+  "metadataVersion": 1,
+  "fixture": {
+    "wifi": "default",
+    "peripherals": []
+  }
+}

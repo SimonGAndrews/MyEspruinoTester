@@ -4,7 +4,16 @@
 // Wraps pluggable flashing adapters (esp32-esptool) to program devices
 // using prebuilt firmware bundles defined by board manifests.
 
-const { REPO_ROOT, listBoards, loadManifest, resolveSuites, resolveFirmware } = require('../lib/manifest');
+const fs = require('fs');
+const path = require('path');
+const {
+  REPO_ROOT,
+  listBoards: listLegacyBoards,
+  loadManifest,
+  resolveSuites,
+  resolveFirmware,
+} = require('../lib/manifest');
+const { listBoards: listV4Boards, loadBoardProfile } = require('../lib/v4/boardProfile');
 const { getAdapter } = require('../flashers');
 
 /**
@@ -115,7 +124,9 @@ async function main() {
   }
 
   if (args.list) {
-    const boards = listBoards(repoRoot);
+    const boards = Array.from(
+      new Set([...listLegacyBoards(repoRoot), ...listV4Boards(repoRoot)])
+    ).sort();
     console.log('Available boards:');
     boards.forEach(name => console.log(`  - ${name}`));
     process.exit(0);
@@ -130,10 +141,25 @@ async function main() {
 
   let manifest;
   let manifestPath;
+  let profile = null;
+  const boardDir = path.join(repoRoot, 'boards', boardName);
   try {
-    const loaded = loadManifest(boardName, repoRoot);
-    manifest = loaded.manifest;
-    manifestPath = loaded.manifestPath;
+    if (
+      fs.existsSync(boardDir) &&
+      fs.statSync(boardDir).isDirectory() &&
+      fs.existsSync(path.join(boardDir, 'board.json'))
+    ) {
+      profile = loadBoardProfile(boardName, repoRoot);
+      manifest = { ...profile.config.board };
+      if (profile.config.loader?.ports) {
+        manifest.ports = profile.config.loader.ports;
+      }
+      manifestPath = profile.files.board;
+    } else {
+      const loaded = loadManifest(boardName, repoRoot);
+      manifest = loaded.manifest;
+      manifestPath = loaded.manifestPath;
+    }
   } catch (err) {
     console.error(`Error: ${err.message}`);
     process.exit(1);
