@@ -1,0 +1,23 @@
+{
+  "suite": "flash-storage",
+  "metadataVersion": 1,
+  "execution": {
+    "order": [
+      "test_write_module.js",
+      "test_use_module.js",
+      "test_preload_module.js",
+      "test_ram_state_first.js",
+      "test_ram_state_second.js"
+    ]
+  },
+  "config": {
+    "loader": {
+      "preUploadDelayMs": 0,
+      "postUploadDelayMs": 0
+    },
+    "cli": {
+      "RESET_BEFORE_SEND": true
+    }
+  },
+  "notes": "Ensures module data persists in Storage across runs and exercises no-reset upload behaviour."
+}

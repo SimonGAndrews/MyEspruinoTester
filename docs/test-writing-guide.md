@@ -113,7 +113,7 @@ Here’s the execution order in plain language:
 
 1. **Global setup:** 
    - Declares helper variables (`result`, `resultReason`, `resultStatus`, `__setResult`).
-   - (When fixtures are provided) sets `global.ESPRUINO_WIFI_FIXTURES = {...}` before the main function runs.
+   - (When fixtures are provided) sets `global.ESPRUINO_FIXTURES = {...}` before the main function runs.
 
 2. **Outer IIFE:** `(function(){ ... })();` starts immediately. This ensures every test runs in an isolated scope.
 
@@ -167,13 +167,13 @@ When you run the harness with `--fixtures configs/fixtures.wifi_station.json`, `
 
 ```javascript
 const fixtures = JSON.parse(fs.readFileSync(fixturesPath, 'utf8'));
-fixtureInjection = `global.ESPRUINO_WIFI_FIXTURES = ${JSON.stringify(fixtures)};`;
+fixtureInjection = `global.ESPRUINO_FIXTURES = ${JSON.stringify(fixtures)};`;
 ```
 
 That snippet becomes part of the wrapped source (see section 2). In the saved copy under `results/.../sources/` you’ll see a line such as:
 
 ```javascript
-global.ESPRUINO_WIFI_FIXTURES = {"wifi":{"ssid":"SHED","password":"MyGreatShed","timeout":25000,"hostname":"espruino-tester"},"wifi_invalid":{"enabled":false,"ssid":"SHED","password":"WRONG","timeout":12000}};
+global.ESPRUINO_FIXTURES = {"wifi":{"ssid":"SHED","password":"MyGreatShed","timeout":25000,"hostname":"espruino-tester"},"wifi_invalid":{"enabled":false,"ssid":"SHED","password":"WRONG","timeout":12000}};
 ```
 
 ### 3.3 Using fixtures inside a test
@@ -181,7 +181,7 @@ global.ESPRUINO_WIFI_FIXTURES = {"wifi":{"ssid":"SHED","password":"MyGreatShed",
 Tests read the data at runtime. For example, `tests/wifi-station/test_connect_get_ip.js` begins with:
 
 ```javascript
-var fixtures = global.ESPRUINO_WIFI_FIXTURES || {};
+var fixtures = global.ESPRUINO_FIXTURES || {};
 var wifiCfg = fixtures.wifi;
 if (!wifiCfg || !wifiCfg.ssid || !wifiCfg.password) {
   result = { status: 'skip', pass: false, reason: 'wifi-station skipped (fixtures.wifi not provided)' };
@@ -189,7 +189,7 @@ if (!wifiCfg || !wifiCfg.ssid || !wifiCfg.password) {
 }
 ```
 
-Because the runner injected the JSON before the test executes, `global.ESPRUINO_WIFI_FIXTURES` already holds the right values. Tests can also check optional blocks (`fixtures.wifi_invalid`, `fixtures.http`, etc.) and skip themselves cleanly when data is missing.
+Because the runner injected the JSON before the test executes, `global.ESPRUINO_FIXTURES` already holds the right values. Tests can also check optional blocks (`fixtures.wifi_invalid`, `fixtures.http`, etc.) and skip themselves cleanly when data is missing.
 
 This injection happens in both the Gordon runner and the richer `scripts/run-tests.js`, so the same fixture files work for every harness.
 
@@ -240,7 +240,7 @@ Example with a manual timeout guard:
 ```javascript
 (function(){
   try {
-    var fixtures = global.ESPRUINO_WIFI_FIXTURES || {};
+    var fixtures = global.ESPRUINO_FIXTURES || {};
     var wifiCfg = fixtures.wifi;
     if (!wifiCfg) {
       result = { status: 'skip', pass: false, reason: 'no fixtures.wifi block' };
@@ -310,6 +310,7 @@ Guidelines:
 | `cliArgs` | array of strings | Each array element is forwarded verbatim; use one token per flag/value. | Adds extra command-line arguments to the CLI invocation(s). Useful for ad-hoc flags such as `--sleep 1`. | `[]`. |
 | `espruinoConfig` | object | Arbitrary key/value pairs. Values are JSON-encoded so you can send numbers, booleans, strings, or nested objects. | Converts to multiple `--config KEY=VALUE` CLI flags before the upload. | `{}`. |
 | `storagePreload` | object or array of objects | Each entry must contain `filename` plus either literal `contents` (a string) or `sourceFile` (path relative to the test file or absolute). | Triggers an additional CLI run *before* the test upload. The runner writes your payload into Storage using `--storage` arguments, records the CLI stdout/stderr under `<test>.storage.*`, and then runs the main test. | Not set; no preload. |
+| `requirements` | array of strings | Arbitrary requirement tags (`"WIFI-CONNECT-001"`, `"BLE-AVAILABLE"`, etc.). | Copied into the merged config and run metadata so higher layers (reporting, CI) can gate tests on capabilities. | `[]`. |
 
 ### Save on Send targets in plain language
 
@@ -344,7 +345,7 @@ The Gordon harness watches for `result` in a 50 ms polling loop (the `wait()` 
 
 ### When to reach for `storagePreload`
 
-`storagePreload` is handy whenever a test needs extra files in Espruino Storage before the main script runs—for example HTML fixtures, certificate bundles, or helper modules that your test loads with `require("Storage").read(...)`. The harness performs a lightweight “preload” CLI run that only writes those files, then performs the normal upload. Use this when:
+`storagePreload` is handy whenever a test needs extra files in Espruino Storage before the main script runs—for example HTML fixtures, certificate bundles, or helper modules that your test loads with `require("Storage").read(...)`. The harness performs a lightweight “preload” CLI run that only writes those files, then performs the normal upload. The CLI command used for the preload and the captured stdout/stderr are recorded under `runner-metadata/<test>.json` and `logs/<test>.storage.(stdout|stderr)` so you can audit what happened on-device. Use this when:
 
 - Your test depends on multiple Storage files and you want to populate them from checked-in sources.
 - You need deterministic device state (for example, seeded data logs) without embedding everything inline in the test body.
@@ -358,10 +359,23 @@ Invalid metadata causes the runner to mark the test as failed and prints the val
 
 ---
 
+### Suite Metadata (testConfig.json)
+
+Suites can provide a `tests/<suite>/testConfig.json` file that applies defaults to every test in the directory. Typical uses:
+
+- **Execution order:** declare an `"execution": { "order": [ ... ] }` array so critical setup tests run first (for example, write to Storage before consuming the module). Tests not listed still run afterwards in discovery order.
+- **Shared config:** place `loader`, `cli`, or `fixture` blocks under `config` to seed pre/post delays, `noReset`, `storagePreload`, fixture defaults, or requirement tags that apply to the whole suite.
+- **Notes:** the optional `notes` field documents suite purpose and prerequisites so future contributors know what the harness is expected to provide.
+
+Every test still merges its own metadata on top of the suite defaults, and the harness records provenance in `runner-metadata/<test>.json` so you can see which layer supplied each value.
+
+---
+
 ## 7. Debugging Tips
 
 - The wrapped sources saved by the runner are ideal for REPL reproduction. Paste the entire file into the Web IDE to mimic harness behaviour.
 - Look in `results/<timestamp>/<board>/logs/` for the raw stdout/stderr captured from each run.
+- Connection failures (busy port, unplugged board) now surface as explicit diagnostics (`cli.connect`) in the per-test metadata and console output; fix the hardware state and rerun.
 - Tests skip cleanly when required fixtures or optional APIs are missing, so you can iterate without rewiring every test.
 - If the CLI reports errors about missing board JSON (for example when using community boards), generate the JSON from the firmware repo with `python scripts/build_board_json.py boards/MYBOARD.py > MYBOARD.json` and pass it to the harness with `--board boards/MYBOARD.json`. Without the JSON the CLI cannot determine Storage layout or firmware offsets, and uploads will fail before your test runs.
 

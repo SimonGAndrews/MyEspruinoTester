@@ -183,6 +183,17 @@ function normaliseStoragePreloadEntries(entries, testDir) {
   return normalised;
 }
 
+function detectConnectionIssue(stdout = '', stderr = '', port) {
+  const text = `${stdout || ''}\n${stderr || ''}`;
+  if (/Unable to connect/i.test(text)) {
+    return `Connection error: Unable to connect to ${port}. Check board state and cabling.`;
+  }
+  if (/device or resource busy/i.test(text) || /Cannot open/i.test(text)) {
+    return `Connection error: Port ${port} is busy or unavailable.`;
+  }
+  return null;
+}
+
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 2; i < argv.length; i++) {
@@ -489,6 +500,7 @@ async function runOneTest(
           }
         });
         const finish = () => {
+          const connectionIssue = detectConnectionIssue(out, err, port);
           if (record) {
             resolve({
               pass: record.status ? record.status === 'pass' : !!record.pass,
@@ -502,6 +514,7 @@ async function runOneTest(
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
               cliArgs: cliCommand,
+              connectionIssue: null,
             });
           } else {
             resolve({
@@ -509,10 +522,11 @@ async function runOneTest(
               status: 'fail',
               output: out,
               stderr: err,
-              reason: 'no_result',
+              reason: connectionIssue || 'no_result',
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
               cliArgs: cliCommand,
+              connectionIssue: connectionIssue,
             });
           }
         };
@@ -786,8 +800,10 @@ async function main() {
     cliLayer.cli.RESET_BEFORE_SEND = false;
   }
 
+  const quietMode = Boolean(args.quiet);
+
   const E = ensureEspruinoModule();
-  await warmup(E, resolvedPort, Boolean(args.quiet));
+  await warmup(E, resolvedPort, quietMode);
 
   const timestamp = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -830,6 +846,11 @@ async function main() {
     let diagnostics = [];
     let requiredFixturePaths = [];
     let aggregatedRequirements = new Set();
+    let storageCliCommand = null;
+    let storageExecuted = false;
+    let basePreDelay = null;
+    let basePostDelay = null;
+    let effectivePreDelay = 0;
     try {
       testMeta = parseTestMetadata(test.path);
       perTestConfig = cloneConfig(baseConfig);
@@ -865,6 +886,52 @@ async function main() {
         perTestConfig.loader.requirements = Array.from(aggregatedRequirements);
       }
 
+      const loaderBranch = perTestConfig.loader || {};
+      basePreDelay = normaliseDelay(loaderBranch.preUploadDelayMs);
+      if (basePreDelay !== null) {
+        loaderBranch.preUploadDelayMs = basePreDelay;
+      } else if (loaderBranch.preUploadDelayMs !== undefined) {
+        delete loaderBranch.preUploadDelayMs;
+      }
+      basePostDelay = normaliseDelay(loaderBranch.postUploadDelayMs);
+      if (basePostDelay !== null) {
+        loaderBranch.postUploadDelayMs = basePostDelay;
+      } else if (loaderBranch.postUploadDelayMs !== undefined) {
+        delete loaderBranch.postUploadDelayMs;
+      }
+
+      const storageItemsRaw = loaderBranch.storagePreload;
+      const hasStoragePreload = storageItemsRaw && ensureArray(storageItemsRaw).length > 0;
+      if (hasStoragePreload) {
+        storageExecuted = true;
+        try {
+          const storageResult = await runStoragePreload(
+            resolvedPort,
+            test.path,
+            profile,
+            perTestConfig,
+            storageItemsRaw,
+            quietMode,
+            {
+              preDelayMs: basePreDelay ?? 0,
+              postDelayMs: basePostDelay ?? 0,
+              logsDir: writeLogs ? logsDir : null,
+              testId: test.id,
+              writeLogs,
+            }
+          );
+          if (storageResult && storageResult.cliCommand) {
+            storageCliCommand = storageResult.cliCommand;
+          }
+        } catch (storageErr) {
+          if (storageErr && storageErr.cliCommand && !storageCliCommand) {
+            storageCliCommand = storageErr.cliCommand;
+          }
+          throw storageErr;
+        }
+      }
+      effectivePreDelay = hasStoragePreload ? 0 : basePreDelay ?? 0;
+
       const fixturePayload = perTestConfig.fixture || {};
       const fixtureInjectionCode = Object.keys(fixturePayload).length
         ? `global.ESPRUINO_FIXTURES = ${JSON.stringify(fixturePayload)};`
@@ -877,12 +944,21 @@ async function main() {
         testMeta.rawSource,
         profile,
         perTestConfig,
-        Boolean(args.quiet),
-        fixtureInjectionCode
+        quietMode,
+        fixtureInjectionCode,
+        { preDelayMs: effectivePreDelay, postDelayMs: basePostDelay ?? 0 }
       );
 
-      const { wrappedSource, timeout_ms, cliArgs, ...resultBase } = runResult;
+      const { wrappedSource, timeout_ms, cliArgs, connectionIssue, ...resultBase } = runResult;
       const resultForMeta = { ...resultBase };
+      if (connectionIssue) {
+        diagnostics.push({
+          level: 'error',
+          source: 'runner',
+          path: 'cli.connect',
+          message: connectionIssue,
+        });
+      }
 
       const missingFixturePaths = validateFixturePaths(perTestConfig.fixture, requiredFixturePaths);
       if (missingFixturePaths.length) {
@@ -940,6 +1016,8 @@ async function main() {
           if (!configForLog.cli.espruinoConfig.length) delete configForLog.cli.espruinoConfig;
         }
         const provenanceForLog = provenance.filter((entry) => !(entry.source === 'session-defaults' && entry.path === 'cli.espruinoConfig'));
+        const storageStdoutPath = storageExecuted && writeLogs ? path.join('logs', `${test.id}.storage.stdout`) : null;
+        const storageStderrPath = storageExecuted && writeLogs ? path.join('logs', `${test.id}.storage.stderr`) : null;
         const record = {
           metadataVersion: 1,
           board: boardName,
@@ -967,8 +1045,14 @@ async function main() {
             sources: writeSources ? path.join('sources', test.id) : null,
             stdout: writeLogs ? path.join('logs', `${test.id}.stdout`) : null,
             stderr: writeLogs ? path.join('logs', `${test.id}.stderr`) : null,
+            storageStdout: storageStdoutPath,
+            storageStderr: storageStderrPath,
           },
         };
+        if (storageCliCommand) {
+          record.storageCliCommand = storageCliCommand;
+        }
+        record.storagePreloadApplied = storageExecuted;
         fs.writeFileSync(metadataPath, JSON.stringify(record, null, 2));
       }
     } catch (err) {
@@ -983,6 +1067,9 @@ async function main() {
         reason: err.message || err,
         duration_ms: null,
       });
+      if (err && err.cliCommand && !storageCliCommand) {
+        storageCliCommand = err.cliCommand;
+      }
       console.log(`ERROR (${err.message || err})`);
       if (writeMetadata && perTestConfig && provenance) {
         const metadataPath = path.join(metadataDir, `${test.id}.json`);
@@ -992,6 +1079,9 @@ async function main() {
           if (!configForLog.cli.espruinoConfig.length) delete configForLog.cli.espruinoConfig;
         }
         const provenanceForLog = provenance.filter((entry) => !(entry.source === 'session-defaults' && entry.path === 'cli.espruinoConfig'));
+        const storageStdoutPath = storageExecuted && writeLogs ? path.join('logs', `${test.id}.storage.stdout`) : null;
+        const storageStderrPath = storageExecuted && writeLogs ? path.join('logs', `${test.id}.storage.stderr`) : null;
+        const failedCliCommand = err && err.cliCommand ? err.cliCommand : null;
         const record = {
           metadataVersion: 1,
           board: boardName,
@@ -1013,13 +1103,19 @@ async function main() {
           requiredFixtures: requiredFixturePaths,
           requirements: Array.from(aggregatedRequirements),
           diagnostics,
-          cliCommand: cliArgs,
+          cliCommand: failedCliCommand,
           artefacts: {
             sources: writeSources ? path.join('sources', test.id) : null,
             stdout: writeLogs ? path.join('logs', `${test.id}.stdout`) : null,
             stderr: writeLogs ? path.join('logs', `${test.id}.stderr`) : null,
+            storageStdout: storageStdoutPath,
+            storageStderr: storageStderrPath,
           },
         };
+        if (storageCliCommand) {
+          record.storageCliCommand = storageCliCommand;
+        }
+        record.storagePreloadApplied = storageExecuted;
         fs.writeFileSync(metadataPath, JSON.stringify(record, null, 2));
       }
     }
@@ -1054,6 +1150,24 @@ async function main() {
   console.log('==========');
   console.log(`${passCount} passed, ${failCount} failed, ${skipCount} skipped`);
   console.log(`Results directory: ${resultsDir}`);
+
+  const finishedAt = new Date();
+  const runSummaryRecord = {
+    metadataVersion: 1,
+    board: boardName,
+    port: resolvedPort,
+    suites: perSuite,
+    totals: { pass: passCount, fail: failCount, skip: skipCount },
+    startedAt: timestamp.toISOString(),
+    finishedAt: finishedAt.toISOString(),
+    stamp,
+    args: process.argv.slice(2),
+  };
+  try {
+    fs.writeFileSync(path.join(resultsDir, 'run-summary.json'), JSON.stringify(runSummaryRecord, null, 2));
+  } catch (err) {
+    console.warn(`Warning: failed to write run-summary.json (${err.message || err})`);
+  }
 
   process.exit(failCount ? 1 : 0);
 }

@@ -50,6 +50,7 @@
     "available": [
       "javascript-core",
       "javascript-upstream",
+      "flash-storage",
       "wifi-core",
       "wifi-station",
       "wifi-http-client",

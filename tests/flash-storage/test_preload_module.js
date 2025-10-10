@@ -1,0 +1,30 @@
+/* JSON {
+  "notes": "Stages a module into Storage via the harness storagePreload flow and verifies it can be required immediately.",
+  "config": {
+    "loader": {
+      "storagePreload": [
+        { "filename": "phase3_preload_module", "sourceFile": "assets/phase3_preload_module.js" }
+      ],
+      "preUploadDelayMs": 0,
+      "postUploadDelayMs": 0,
+      "timeoutMs": 15000
+    },
+    "cli": {
+      "RESET_BEFORE_SEND": true
+    }
+  }
+} */
+
+var Storage = require("Storage");
+
+var modules = Storage.list();
+if (!modules || modules.indexOf("phase3_preload_module") === -1) {
+  result = { status: "fail", reason: "phase3_preload_module missing after preload" };
+} else {
+  var preload = require("phase3_preload_module");
+  if (!preload || typeof preload.triple !== "function") {
+    result = { status: "fail", reason: "preloaded module missing triple()" };
+  } else {
+    result = preload.triple(7) === 21;
+  }
+}
