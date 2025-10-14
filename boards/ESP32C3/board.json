@@ -45,21 +45,24 @@
     "default": [
       "javascript-core",
       "wifi-core",
-      "wifi-station"
+      "wifi-station",
+      "demo/CLI_Overrides"
     ],
     "available": [
+      "basicAsync",
+      "demo/CLI_Overrides",
+      "demo/getStarted",
+      "flash-storage",
       "javascript-core",
       "javascript-upstream",
-      "flash-storage",
+      "runner-metadata",
+      "wifi-ap",
+      "wifi-config-diagnostics",
       "wifi-core",
-      "wifi-station",
       "wifi-http-client",
       "wifi-http-server",
       "wifi-mqtt-ws",
-      "wifi-ap",
-      "wifi-config-diagnostics",
-      "basicAsync",
-      "runner-metadata"
+      "wifi-station"
     ]
   }
 }

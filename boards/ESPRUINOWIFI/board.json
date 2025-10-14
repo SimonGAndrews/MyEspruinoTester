@@ -1,0 +1,35 @@
+{
+  "metadataVersion": 1,
+  "board": "ESPRUINOWIFI",
+  "description": "Espruino WiFi harness profile",
+  "upstream": {
+    "id": "ESPRUINOWIFI",
+    "binary": "espruino_%v_wifi.bin",
+    "binaries": [
+      { "filename": "espruino_%v_wifi.bin", "description": "Standard Espruino WiFi build" }
+    ]
+  },
+  "firmware": {
+    "pattern": "espruino_%v_wifi.bin"
+  },
+  "flash": {
+    "type": "dfu-util",
+    "device": "STM32F411",
+    "notes": "Use the Espruino Web IDE or dfu-util via the USB bootloader to flash the Espruino WiFi."
+  },
+  "suites": {
+    "default": [
+      "demo/getStarted",
+      "demo/CLI_Overrides"
+    ],
+    "available": [
+      "basicAsync",
+      "demo/CLI_Overrides",
+      "demo/getStarted",
+      "flash-storage",
+      "javascript-core",
+      "javascript-upstream",
+      "runner-metadata"
+    ]
+  }
+}

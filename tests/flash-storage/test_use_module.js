@@ -11,17 +11,24 @@
   }
 } */
 
-var Storage = require("Storage");
-
-var moduleList = Storage.list();
-if (!moduleList || moduleList.indexOf("phase3_helper") === -1) {
-  result = { status: "fail", reason: "phase3_helper not found in Storage" };
-} else {
-  var helper = require("phase3_helper");
-  if (!helper || typeof helper.double !== "function") {
-    result = { status: "fail", reason: "helper module missing export" };
+try {
+  var Storage = require("Storage");
+  var moduleList = Storage.list();
+  if (!moduleList || moduleList.indexOf("phase3_helper") === -1) {
+    __fail("phase3_helper not found in Storage");
   } else {
-    var computed = helper.double(21);
-    result = computed === 42;
+    var helper = require("phase3_helper");
+    if (!helper || typeof helper.double !== "function") {
+      __fail("helper module missing export");
+    } else {
+      var computed = helper.double(21);
+      if (computed === 42) {
+        __pass();
+      } else {
+        __fail("phase3_helper.double did not return 42");
+      }
+    }
   }
+} catch (err) {
+  __fail('use module test threw: ' + ((err && err.message) || err));
 }

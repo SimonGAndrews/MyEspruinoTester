@@ -12,7 +12,7 @@
 } */
 
 if (global.__phase3_ram_flag !== 123) {
-  result = { status: "fail", reason: "RAM flag missing after no-reset" };
+  __fail("RAM flag missing after no-reset");
 } else {
-  result = true;
+  __pass();
 }

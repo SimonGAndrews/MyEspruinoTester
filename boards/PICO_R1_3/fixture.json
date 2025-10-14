@@ -1,0 +1,7 @@
+{
+  "metadataVersion": 1,
+  "fixture": {
+    "ledPins": ["LED1", "LED2"],
+    "buttonPin": "BTN1"
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "metadataVersion": 1,
+  "board": "ESP32C3",
+  "suite": "demo/getStarted",
+  "test": "test_metadata_led_override.js",
+  "sourceFile": "tests/demo/getStarted/test_metadata_led_override.js",
+  "config": {
+    "loader": {
+      "ports": {
+        "serial": [
+          "/dev/ttyACM*",
+          "/dev/ttyUSB*"
+        ],
+        "baud": 115200
+      },
+      "board": "ESP32C3",
+      "port": "/dev/ttyACM0",
+      "timeoutMs": 15000,
+      "preUploadDelayMs": 0,
+      "postUploadDelayMs": 0
+    },
+    "cli": {
+      "ports": [
+        "/dev/ttyACM0"
+      ],
+      "espruinoConfig": [
+        {
+          "key": "DISABLE_NOBLE",
+          "value": true
+        }
+      ],
+      "SAVE_ON_SEND": 0,
+      "cliArgs": [
+        "--no-ble"
+      ]
+    },
+    "fixture": {
+      "wifi": "default",
+      "peripherals": [],
+      "demo": {
+        "ledPin": 2
+      }
+    }
+  },
+  "provenance": [
+    {
+      "source": "session-defaults",
+      "path": "cli.ports",
+      "value": [
+        ""
+      ]
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "loader.ports",
+      "value": {
+        "serial": [
+          "/dev/ttyACM*",
+          "/dev/ttyUSB*"
+        ],
+        "baud": 115200
+      }
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "cli.SAVE_ON_SEND",
+      "value": 0
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "cli.cliArgs",
+      "value": [
+        "--no-ble"
+      ]
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "cli.espruinoConfig",
+      "value": [
+        {
+          "key": "DISABLE_NOBLE",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "fixture.wifi",
+      "value": "default"
+    },
+    {
+      "source": "board:ESP32C3",
+      "path": "fixture.peripherals",
+      "value": []
+    },
+    {
+      "source": "suite:demo/getStarted",
+      "path": "fixture.demo",
+      "value": {
+        "message": "Hello from fixture",
+        "number": 42
+      }
+    },
+    {
+      "source": "test:test_metadata_led_override.js",
+      "path": "fixture.demo",
+      "value": {
+        "ledPin": 2
+      }
+    },
+    {
+      "source": "cli-overrides",
+      "path": "loader.port",
+      "value": "/dev/ttyACM0"
+    },
+    {
+      "source": "cli-overrides",
+      "path": "cli.ports",
+      "value": [
+        "/dev/ttyACM0"
+      ]
+    }
+  ],
+  "result": {
+    "status": "pass",
+    "reason": "LED pin present (2) via metadata override",
+    "duration_ms": 16.51196289062,
+    "timeout_ms": 15000
+  },
+  "ports": {
+    "resolved": "/dev/ttyACM0",
+    "declared": [
+      "/dev/ttyACM0"
+    ]
+  },
+  "requiredFixtures": [],
+  "requirements": [],
+  "diagnostics": [],
+  "cliCommand": [
+    "espruino",
+    "--port",
+    "/dev/ttyACM0",
+    "--config",
+    "BAUD_RATE=115200",
+    "--no-ble",
+    "--config",
+    "BAUD_RATE=9600",
+    "--config",
+    "BLUETOOTH_LOW_ENERGY=true",
+    "--config",
+    "BOARD_JSON_URL=http://www.espruino.com/json",
+    "--config",
+    "COMPILATION=true",
+    "--config",
+    "COMPILATION_URL=http://www.espruino.com:32766",
+    "--config",
+    "ENV_ON_CONNECT=true",
+    "--config",
+    "MINIFICATION_LEVEL=",
+    "--config",
+    "MINIFICATION_Mangle=true",
+    "--config",
+    "MODULE_AS_FUNCTION=false",
+    "--config",
+    "MODULE_EXTENSIONS=.min.js|.js",
+    "--config",
+    "MODULE_MINIFICATION_LEVEL=ESPRIMA",
+    "--config",
+    "MODULE_URL=http://www.espruino.com/modules",
+    "--config",
+    "NPM_MODULES=false",
+    "--config",
+    "RESET_BEFORE_SEND=true",
+    "--config",
+    "SAVE_ON_SEND=0",
+    "--config",
+    "SAVE_STORAGE_FILE=",
+    "--config",
+    "SERIAL_AUDIO=0",
+    "--config",
+    "SERIAL_TCPIP=",
+    "--config",
+    "SERIAL_THROTTLE_SEND=false",
+    "--config",
+    "SET_TIME_ON_WRITE=false",
+    "--config",
+    "STORE_LINE_NUMBERS=true",
+    "--config",
+    "UI_MODE=Normal",
+    "--config",
+    "WEB_BLUETOOTH=true",
+    "--config",
+    "DISABLE_NOBLE=true",
+    "--config",
+    "SAVE_ON_SEND=0",
+    "-e",
+    "var __TEST_TIMEOUT_SEC=15;\nfunction __setTestResult(__status, __reason){ result = { status: __status, reason: __reason || null }; }\nfunction __pass(__reason){ __setTestResult('pass', __reason); }\nfunction __fail(__reason){ __setTestResult('fail', __reason); }\nfunction __skip(__reason){ __setTestResult('skip', __reason); }\nglobal.ESPRUINO_FIXTURES = {\"wifi\":\"default\",\"peripherals\":[],\"demo\":{\"ledPin\":2}};\n/* JSON {\n  \"notes\": \"Shows per-test metadata: overrides demo.ledPin so the LED check passes.\",\n  \"config\": {\n    \"fixture\": {\n      \"demo\": {\n        \"ledPin\": 2\n      }\n    }\n  }\n} */\n\n(function(){\n  try {\n    var fixtures = global.ESPRUINO_FIXTURES || {};\n    var demo = fixtures.demo || {};\n    if (demo.ledPin === undefined || demo.ledPin === null) {\n      __fail('demo.ledPin missing even after metadata override');\n      return;\n    }\n    console.log('Would toggle LED on pin', demo.ledPin);\n    __pass('LED pin present (' + demo.ledPin + ') via metadata override');\n  } catch (err) {\n    __fail('metadata LED test threw: ' + ((err && err.message) || err));\n  }\n})();\n\n(function(){\n  var __t0 = Date.now();\n  var __deadline = __t0 + ((__TEST_TIMEOUT_SEC||5)*1000);\n  function done(value){\n    var normalized = normalizeResult(value);\n    var status = normalized.status;\n    var reason = normalized.reason;\n    if (typeof resultStatus !== 'undefined' && resultStatus != null) status = resultStatus;\n    if (reason == null && typeof resultReason !== 'undefined' && resultReason != null) reason = resultReason;\n    if (status !== 'pass' && status !== 'fail' && status !== 'skip') status = 'fail';\n    var out={__espruino_test__:true,file:\"test_metadata_led_override.js\",status:status,duration_ms:(Date.now() - __t0),reason: reason || null};\n    print(JSON.stringify(out));\n    if (typeof result !== 'undefined') result = undefined;\n    if (typeof resultStatus !== 'undefined') resultStatus = null;\n    if (typeof resultReason !== 'undefined') resultReason = null;\n  }\n  function normalizeResult(value){\n    var status = null;\n    var reason = null;\n    if (value && typeof value === 'object') {\n      if (typeof value.status === 'string') {\n        status = String(value.status).toLowerCase();\n      }\n      if (value.reason != null) reason = value.reason;\n      if (!status) {\n        if (value.skip) status = 'skip';\n        else if (typeof value.pass !== 'undefined') status = value.pass ? 'pass' : 'fail';\n        else status = value ? 'pass' : 'fail';\n      }\n    } else if (typeof value === 'string') {\n      status = value.toLowerCase();\n    } else {\n      status = value ? 'pass' : 'fail';\n    }\n    if (status !== 'pass' && status !== 'fail' && status !== 'skip') {\n      status = 'fail';\n    }\n    return { status: status, reason: reason };\n  }\n  (function wait(){\n    if (typeof result!=='undefined') return done(result);\n    if (Date.now()<__deadline) return setTimeout(wait,50);\n    resultStatus = 'fail';\n    resultReason = 'timeout';\n    done(false);\n  })();\n})();\n",
+    "--board",
+    "/home/simon/Espruino/MyEspruinoTester01/boards/cliBoardFiles/ESP32C3_IDF4.json"
+  ],
+  "artefacts": {
+    "sources": "sources/test_metadata_led_override.js",
+    "stdout": "logs/test_metadata_led_override.js.stdout",
+    "stderr": "logs/test_metadata_led_override.js.stderr",
+    "storageStdout": null,
+    "storageStderr": null
+  },
+  "storagePreloadApplied": false
+}

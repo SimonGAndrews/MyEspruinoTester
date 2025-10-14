@@ -1,0 +1,17 @@
+{
+  "suite": "demo/CLI_Overrides",
+  "metadataVersion": 1,
+  "execution": {
+    "order": [
+      "test_storage_preload_demo.js",
+      "test_flash_no_save.js",
+      "test_flash_execute.js",
+      "test_no_reset_first.js",
+      "test_no_reset_second.js",
+      "test_cli_args_demo.js",
+      "test_loader_delays_demo.js",
+      "test_port_override_demo.js"
+    ]
+  },
+  "notes": "Demo tests exploring CLI/config overrides such as storage preload."
+}

@@ -319,47 +319,55 @@ async function warmup(E, port, quiet = false) {
 function composeWrappedTest(fileId, src, timeoutSec, contextInjection) {
   const injections = [];
   injections.push(`var __TEST_TIMEOUT_SEC=${Math.max(1, timeoutSec)};`);
+  injections.push('function __setTestResult(__status, __reason){ result = { status: __status, reason: __reason || null }; }');
+  injections.push('function __pass(__reason){ __setTestResult(\'pass\', __reason); }');
+  injections.push('function __fail(__reason){ __setTestResult(\'fail\', __reason); }');
+  injections.push('function __skip(__reason){ __setTestResult(\'skip\', __reason); }');
   if (contextInjection) injections.push(contextInjection);
   const prologue = injections.join('\n') + '\n';
   const epilogue = `
 (function(){
-  function now(){return (typeof getTime==='function'?getTime():Date.now()/1000);}
-  var __t0 = now();
-  var __deadline = __t0 + (__TEST_TIMEOUT_SEC||5);
+  var __t0 = Date.now();
+  var __deadline = __t0 + ((__TEST_TIMEOUT_SEC||5)*1000);
   function done(value){
-    var duration = Math.round((now()-__t0)*1000);
-    var status = 'pass';
-    var reason = null;
-    var ok = true;
-    if (value !== null && typeof value === 'object') {
-      if (typeof value.status === 'string') {
-        status = value.status;
-      } else if (value.skip) {
-        status = 'skip';
-      } else if (typeof value.pass !== 'undefined') {
-        status = value.pass ? 'pass' : 'fail';
-      } else {
-        ok = !!value;
-        status = ok ? 'pass' : 'fail';
-      }
-      if (typeof value.reason !== 'undefined' && value.reason !== null) reason = value.reason;
-    } else {
-      ok = !!value;
-      status = ok ? 'pass' : 'fail';
-    }
-    if (typeof resultStatus !== 'undefined' && resultStatus !== null) status = resultStatus;
-    if (reason === null && typeof resultReason !== 'undefined' && resultReason !== null) reason = resultReason;
-    var passValue = status === 'pass';
-    if (status === 'skip') passValue = false;
-    var out={__espruino_test__:true,file:"${fileId}",pass:passValue,status:status,duration_ms:duration,reason: reason || null};
+    var normalized = normalizeResult(value);
+    var status = normalized.status;
+    var reason = normalized.reason;
+    if (typeof resultStatus !== 'undefined' && resultStatus != null) status = resultStatus;
+    if (reason == null && typeof resultReason !== 'undefined' && resultReason != null) reason = resultReason;
+    if (status !== 'pass' && status !== 'fail' && status !== 'skip') status = 'fail';
+    var out={__espruino_test__:true,file:"${fileId}",status:status,duration_ms:(Date.now() - __t0),reason: reason || null};
     print(JSON.stringify(out));
-    if (typeof resultStatus !== 'undefined') resultStatus = undefined;
-    if (typeof resultReason !== 'undefined') resultReason = undefined;
     if (typeof result !== 'undefined') result = undefined;
+    if (typeof resultStatus !== 'undefined') resultStatus = null;
+    if (typeof resultReason !== 'undefined') resultReason = null;
+  }
+  function normalizeResult(value){
+    var status = null;
+    var reason = null;
+    if (value && typeof value === 'object') {
+      if (typeof value.status === 'string') {
+        status = String(value.status).toLowerCase();
+      }
+      if (value.reason != null) reason = value.reason;
+      if (!status) {
+        if (value.skip) status = 'skip';
+        else if (typeof value.pass !== 'undefined') status = value.pass ? 'pass' : 'fail';
+        else status = value ? 'pass' : 'fail';
+      }
+    } else if (typeof value === 'string') {
+      status = value.toLowerCase();
+    } else {
+      status = value ? 'pass' : 'fail';
+    }
+    if (status !== 'pass' && status !== 'fail' && status !== 'skip') {
+      status = 'fail';
+    }
+    return { status: status, reason: reason };
   }
   (function wait(){
     if (typeof result!=='undefined') return done(result);
-    if (now()<__deadline) return setTimeout(wait,50);
+    if (Date.now()<__deadline) return setTimeout(wait,50);
     resultStatus = 'fail';
     resultReason = 'timeout';
     done(false);
@@ -436,7 +444,6 @@ async function runOneTest(
       boardArg = resolveBoardArg(profile, loaderConfig);
     } catch (err) {
       resolve({
-        pass: false,
         status: 'fail',
         output: '',
         stderr: '',
@@ -444,6 +451,7 @@ async function runOneTest(
         wrappedSource: wrapped,
         timeout_ms: timeoutMs,
         cliArgs: [],
+        connectionIssue: null,
       });
       return;
     }
@@ -462,7 +470,6 @@ async function runOneTest(
           } catch (_) {}
           const finish = () =>
             resolve({
-              pass: false,
               status: 'fail',
               reason: 'timeout',
               output: out || err,
@@ -470,6 +477,7 @@ async function runOneTest(
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
               cliArgs: cliCommand,
+              connectionIssue: null,
             });
           if (resolvedPostDelay > 0) return setTimeout(finish, resolvedPostDelay);
           return finish();
@@ -502,23 +510,21 @@ async function runOneTest(
         const finish = () => {
           const connectionIssue = detectConnectionIssue(out, err, port);
           if (record) {
+            var statusFromRecord = (record && typeof record.status === 'string') ? record.status : 'fail';
             resolve({
-              pass: record.status ? record.status === 'pass' : !!record.pass,
-              skipped: record.status === 'skip',
-              status: record.status || (record.pass ? 'pass' : 'fail'),
+              status: statusFromRecord,
               output: out,
               stderr: err,
-              reason: record.reason || null,
-              duration_ms: record.duration_ms || null,
-              file: record.file,
+              reason: record && record.reason != null ? record.reason : null,
+              duration_ms: record && record.duration_ms != null ? record.duration_ms : null,
+              file: record && record.file ? record.file : path.basename(testPath),
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
               cliArgs: cliCommand,
-              connectionIssue: null,
+              connectionIssue: connectionIssue,
             });
           } else {
             resolve({
-              pass: false,
               status: 'fail',
               output: out,
               stderr: err,
@@ -951,6 +957,12 @@ async function main() {
 
       const { wrappedSource, timeout_ms, cliArgs, connectionIssue, ...resultBase } = runResult;
       const resultForMeta = { ...resultBase };
+      if (!resultForMeta || typeof resultForMeta.status !== 'string') {
+        resultForMeta.status = 'fail';
+      }
+      if (resultForMeta.reason === undefined) {
+        resultForMeta.reason = connectionIssue || null;
+      }
       if (connectionIssue) {
         diagnostics.push({
           level: 'error',
@@ -972,31 +984,32 @@ async function main() {
           }))
         );
         resultForMeta.status = 'fail';
-        resultForMeta.pass = false;
         resultForMeta.reason = message;
       }
 
       const suiteSummary = perSuite[test.suite] || { tests: [], pass: 0, fail: 0, skip: 0 };
       perSuite[test.suite] = suiteSummary;
+      const testStatus = resultForMeta.status;
+      const testReason = resultForMeta.reason || null;
+      const durationMs = resultForMeta.duration_ms || null;
       suiteSummary.tests.push({
         file: test.id,
-        status: resultForMeta.status,
-        pass: resultForMeta.status === 'pass',
-        reason: resultForMeta.reason || null,
-        duration_ms: resultForMeta.duration_ms || null,
+        status: testStatus,
+        reason: testReason,
+        duration_ms: durationMs,
       });
-      if (resultForMeta.status === 'skip') {
+      if (testStatus === 'skip') {
         skipCount++;
         suiteSummary.skip++;
-        console.log(`SKIP${resultForMeta.reason ? ` (${resultForMeta.reason})` : ''}`);
-      } else if (resultForMeta.pass) {
+        console.log(`SKIP${testReason ? ` (${testReason})` : ''}`);
+      } else if (testStatus === 'pass') {
         passCount++;
         suiteSummary.pass++;
         console.log('PASS');
       } else {
         failCount++;
         suiteSummary.fail++;
-        console.log(`FAIL${resultForMeta.reason ? ` (${resultForMeta.reason})` : ''}`);
+        console.log(`FAIL${testReason ? ` (${testReason})` : ''}`);
         if (resultForMeta.output && resultForMeta.output.trim()) {
           console.log(resultForMeta.output.trim());
         }
@@ -1028,9 +1041,8 @@ async function main() {
           provenance: provenanceForLog,
           result: {
             status: resultForMeta.status,
-            pass: resultForMeta.pass,
-            reason: resultForMeta.reason || null,
-            duration_ms: resultForMeta.duration_ms || null,
+            reason: testReason,
+            duration_ms: durationMs,
             timeout_ms: (typeof timeout_ms === 'number' ? timeout_ms : perTestConfig.loader.timeoutMs || 15000),
           },
           ports: {
@@ -1063,7 +1075,6 @@ async function main() {
       suiteSummary.tests.push({
         file: test.id,
         status: 'fail',
-        pass: false,
         reason: err.message || err,
         duration_ms: null,
       });
@@ -1092,7 +1103,6 @@ async function main() {
           provenance: provenanceForLog,
           result: {
             status: 'fail',
-            pass: false,
             reason: err.message || err,
             duration_ms: null,
           },
@@ -1128,7 +1138,7 @@ async function main() {
   });
 
   Object.entries(perSuite).forEach(([suiteName, summary]) => {
-    const suiteFile = path.join(resultsDir, `${suiteName}.json`);
+    const suiteFile = path.join(resultsDir, `${suiteName.replace(/\//g, "_")}.json`);
     fs.writeFileSync(
       suiteFile,
       JSON.stringify(

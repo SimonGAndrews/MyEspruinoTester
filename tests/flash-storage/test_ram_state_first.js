@@ -12,4 +12,8 @@
 } */
 
 global.__phase3_ram_flag = 123;
-result = global.__phase3_ram_flag === 123;
+if (global.__phase3_ram_flag === 123) {
+  __pass();
+} else {
+  __fail("RAM flag not set as expected");
+}

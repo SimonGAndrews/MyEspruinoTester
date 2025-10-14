@@ -1,0 +1,28 @@
+{
+  "metadataVersion": 1,
+  "board": "MDBT42Q",
+  "description": "MDBT42Q Bluetooth Module harness profile",
+  "upstream": {
+    "id": "MDBT42Q",
+    "binary": "espruino_%v_mdbt42q.hex"
+  },
+  "firmware": {
+    "pattern": "espruino_%v_mdbt42q.hex",
+    "notes": "Flash via the Espruino Web IDE or Nordic DFU (nRF52)."
+  },
+  "suites": {
+    "default": [
+      "demo/getStarted",
+      "demo/CLI_Overrides"
+    ],
+    "available": [
+      "basicAsync",
+      "demo/CLI_Overrides",
+      "demo/getStarted",
+      "flash-storage",
+      "javascript-core",
+      "javascript-upstream",
+      "runner-metadata"
+    ]
+  }
+}

@@ -18,7 +18,7 @@ Error: device busy (is another REPL connected to /dev/ttyACM0?). Aborting test r
 This prevents the cascade of `no_result` failures we previously saw when the Web IDE or a spare REPL had the port open.
 
 ## Wi-Fi Suite Status
-All Wi-Fi tests now emit structured `{ status, pass, reason }` results so the new harnesses cannot get stuck waiting for output.
+All Wi-Fi tests now emit structured `{ status, reason }` results so the new harnesses cannot get stuck waiting for output.
 
 ### `wifi-core`
 - `test_module_presence.js`, `test_api_methods.js`, `test_scan_callback.js` rewritten to use structured results and tolerate missing optional APIs.

@@ -20,8 +20,7 @@ MyEspruinoTester01/
 ├─ results/                             # timestamped run artefacts
 ├─ scripts/                             # CLI entrypoints (runners, flashers, utilities)
 ├─ tests/
-│  └─ <target>/
-│     └─ <suite>/
+│  └─ <group>/.../<suite>/              # `group` segments optional; final directory is the suite
 │        ├─ README.md                  # suite overview, required fixtures, execution notes
 │        ├─ test_*.js                  # test scripts
 │        ├─ testConfig.json            # suite-level defaults (see §4.3)
@@ -58,7 +57,10 @@ Each board directory supplies typed metadata files that seed the run configurati
 Files that are not present are simply skipped, keeping the entry-level experience lightweight. The loader reads each file once, infers its destination branch from the filename, and merges the resulting objects (board → fixture → cli) before moving on to suite metadata. No additional overlay files are supported in v4; board authors should express all defaults inside these typed documents.
 
 ### 4.3 Suite Layer
-Suites narrow the run session to a functional set of tests. Each suite may ship a `tests/<target>/<suite>/testConfig.json` with the schema below:
+
+Suites live under `tests/`, optionally nested within descriptive grouping directories. For example `tests/wifi/core/wifi-station/` or `tests/demo/flash-storage/`. When referenced from a board profile or the CLI, omit the leading `tests/` and use the relative path (e.g. `wifi/core/wifi-station`). The final directory name is treated as the suite identifier; intermediate segments are purely organisational and have no semantic meaning in the merge pipeline. Harness discovery walks the tree depth-first, so the execution order is determined by `testConfig.json` plus deterministic file discovery within each suite. The runner executes suites in the order they are supplied on the harness CLI (after board defaults when `--suites` is omitted).
+
+Suites narrow the run session to a functional set of tests. Each suite is addressed by its path relative to `tests/` (for example `demo/flash-storage` or `wifi/core/wifi-station`). Each such directory may ship a `testConfig.json` with the schema below:
 
 ```json
 {
@@ -139,7 +141,7 @@ The harness exposes a small set of CLI switches. These belong to the **harness C
 | --- | --- | --- |
 | `--board <id>` | `config.loader.board` | Also determines the board profile. Missing `boards/<board>/board.json` aborts the run. |
 | `--port <tty>` | `config.loader.port`, `config.cli.ports[0]` | Additional `--port` flags append to the ports array in order supplied. |
-| `--suites a,b` | `config.loader.requestedSuites` | Bypasses board defaults; unknown suite names trigger a fatal error. |
+| `--suites a,b` | `config.loader.requestedSuites` | Bypasses board defaults; suites execute in the order listed; unknown names trigger a fatal error. |
 | `--fixtures <path>` | `config.fixtureSource` (merged into `config.fixture`) | Supplies the top-level fixture document; lower layers can still override branches. |
 | `--pre-cli-delay <ms>` | `config.loader.preUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
 | `--post-cli-delay <ms>` | `config.loader.postUploadDelayMs` | Parsed as integer; overrides metadata-provided delays. |
@@ -473,3 +475,80 @@ Ensure relative path logic (for example, resolving `localJSON` next to the board
 7. **Validate end-to-end:** run `scripts/dry-run.js` (or the new runner) across each board to verify firmware resolution, suite discovery, and CLI arguments.
 
 Once all boards adopt the directory layout and the v4 loader is in place, delete any remaining flat `boards/<board>.json` files to prevent drift.
+
+## Appendix – Future Considerations
+
+### Flash-based Test Wrapper (optional mode)
+
+The current harness injects a full JavaScript wrapper ahead of every test. The wrapper provides fixture injection, keep-alive heartbeats, timeout handling, and result normalisation. For large suites or slower links it may be desirable to ship a lightweight per-test payload and load the wrapper from Espruino Storage instead.
+
+**Proposed approach**
+- Introduce a new harness switch (for example `--wrapper-mode flash`).
+- At the start of a run, upload a versioned wrapper module into Espruino Storage (e.g. `Storage.write("harness_wrapper", "...")`).
+- Each test uploads only a small stub that still injects fixtures inline, then calls `require("harness_wrapper").run(options, function(){ /* original test */ });` while passing timeout, suite metadata, etc.
+- The Storage module mirrors today's wrapper behaviour (keep-alive heartbeat, polling, JSON result output) so result semantics stay identical.
+- Maintain inline mode as the default to keep compatibility and simplify troubleshooting.
+
+**Open questions**
+- How to version the wrapper module and deal with stale copies when the device resets mid-run.
+- Whether to automatically delete the Storage module after the run concludes.
+- How to expose this mode in board profiles or CI (global switch vs per-suite selection).
+
+This appendix describes exploration work only; no code currently implements the flash wrapper mode.
+
+
+### Lightweight Assertions
+
+Future test suites could benefit from simple on-device assertions that feel familiar to developers who use Jest or Mocha. A minimal harness-provided helper might offer:
+
+```javascript
+(function injectAssertions(){
+  function assertionError(message) {
+    var err = new Error(message);
+    err.isHarnessAssertion = true;
+    return err;
+  }
+
+  function format(val) {
+    try { return JSON.stringify(val); }
+    catch (_) { return String(val); }
+  }
+
+  function expect(actual) {
+    return {
+      toBe: function(expected) {
+        if (actual !== expected) throw assertionError('Expected ' + format(actual) + ' to be ' + format(expected));
+      },
+      toEqual: function(expected) {
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) throw assertionError('Expected ' + format(actual) + ' to equal ' + format(expected));
+      },
+      toBeTruthy: function() {
+        if (!actual) throw assertionError('Expected ' + format(actual) + ' to be truthy');
+      },
+      toBeFalsy: function() {
+        if (actual) throw assertionError('Expected ' + format(actual) + ' to be falsy');
+      }
+    };
+  }
+
+  global.expect = expect;
+})();
+```
+
+A wrapper-level `try/catch` could recognise `err.isHarnessAssertion` and convert it into the canonical `{ status: 'fail', reason }` shape. Tests would then read naturally:
+
+```javascript
+try {
+  expect(helper.double(5)).toBe(10);
+  __pass();
+} catch (err) {
+  if (err.isHarnessAssertion) {
+    __fail(err.message);
+  } else {
+    __fail('Unexpected error: ' + (err && err.message || err));
+  }
+}
+```
+
+This would keep the harness minimal while meeting developers halfway with familiar assertion semantics.
+

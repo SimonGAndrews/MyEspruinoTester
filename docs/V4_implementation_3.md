@@ -35,6 +35,10 @@
 - Implemented Storage preload support: suite/test metadata storagePreload entries stage files through a dedicated CLI pass, capture stdout/stderr under `logs/<test>.storage.*`, and record the exact preload command plus a storagePreloadApplied flag in runner metadata.
 - Each run now emits `results/<stamp>/<board>/run-summary.json` with per‑suite totals and the CLI arguments used.
 
+- Repository spec now allows suite directories to be referenced by their path relative to `tests/` (e.g. `demo/flash-storage`), supporting arbitrary grouping folders.
+- Suite artefacts now normalise path separators when writing per-suite JSON (e.g. `demo/getStarted` → `demo_getStarted.json`).
+- Wrapper now exposes `__pass`, `__fail`, `__skip`, and `__setTestResult`, encouraging the canonical `{ status, reason }` result contract while keeping legacy shapes compatible.
+- Result JSON and metadata now rely solely on `status` (pass/fail/skip); the legacy `pass` boolean is no longer emitted.
 In Detail:
 
 - `scripts/run-tests-gordonV4.js`
@@ -50,6 +54,75 @@ In Detail:
 
 - `docs/v4_metadata.md`
   - (earlier) Documented missing fixture requirements as hard FAILs; no further schema changes required for this slice.
+
+
+_        regarding the fifo error. We have seen it before. It fires on multiple occassions when saving to ram. It can be triggered in the REPL , but again obly occures on occasion when uploading same code multiple times. It does not seem to occur when saving to flash. I suspect it is a issue in the ESP32 family because i have not been able to trigger in the Espruino PICO_R1_3 build for a different device._
+
+
+Summary so Far:
+
+- Runner now honours per‑test timeoutMs, preUploadDelayMs, and postUploadDelayMs when scheduling uploads, while allowing CLI overrides (--pre-cli-delay, --post-cli-delay, --no-reset) that feed into the merged config and provenance.
+- Implemented Storage preload support: suite/test metadata storagePreload entries stage files through a dedicated CLI pass, capture stdout/stderr under logs/<test>.storage.*, and record the exact preload command plus a storagePreloadApplied flag in runner metadata.
+- Each run now emits results/<stamp>/<board>/run-summary.json with per‑suite totals and the CLI arguments used.
+
+Testing highlights:
+
+- node scripts/run-tests-gordonV4.js --board ESP32C3 --port /dev/ttyACM0 --suites javascript-core --quiet --pre-cli-delay 0 (results/20251010-055844/ESP32C3) – full suite passes; metadata shows new delay fields and run summary.
+- Temporary storage-preload header on test_store_cli_config.js plus the same command (results/20251010-060020/ESP32C3) – storage CLI run succeeds; metadata/logs confirm staged files.
+- --no-reset validation (results/20251010-060147/ESP32C3) – harness applies the override; uploads become unstable (known ESP32 behaviour), but the config changes are correctly captured.
+- Open note: reintroducing the suite’s 1500 ms pre-upload delay occasionally triggers the ESP32 FIFO_FULL/no_result issue you’ve seen before. We logged it for later and will proceed with harness development.
+- Flash-storage suite works end-to-end after dropping the .js suffix from the stored module name:
+  - Runs succeed on /dev/ttyACM0 with node scripts/run-tests-gordonV4.js --board ESP32C3 --port /dev/ttyACM0 --suites flash-storage --quiet --pre-cli-delay 0; both results/20251010-175058/ESP32C3 and results/20251010-175254/ESP32C3 show two passing tests in order.
+  - Each run writes phase3_helper into Storage, loads it in the no-reset follow-up, and leaves the file visible via the REPL afterward.
+  - Repeated executions continue to pass, confirming persistence and the no-reset pathway.
+
+We’ve exercised every chunk we landed in phase 3:
+
+- Execution controls & CLI surface – Verified by the flash-storage runs (timeout/delay, no-reset) plus earlier javascript-core sweeps and the new connection diagnostics. Metadata shows the merged loader/cli values and the generated run-summary.json.
+- Storage pipeline – Covered twice: first with the temporary storage-preload edit (results/20251010-060020/ESP32C3), then with the dedicated test_preload_module.js case inside the flash-storage suite (results/20251010-181145/ESP32C3).
+- RAM persistence & no-reset – Confirmed with test_ram_state_first.js / test_ram_state_second.js in results/20251010-182026/ESP32C3.
+- Diagnostics – Port failures and connection errors now surface explicitly (see the earlier failed runs such as results/20251010-175721/ESP32C3), and the runner metadata records the diagnostic entries.
+- What remains open are the items we parked in docs/V4_implementation_3.md—namely the sporadic ESP32 FIFO_FULL behaviour, iterating across multiple fallback ports, and tightening schema/CLI documentation. Functionally, everything implemented this phase has been exercised on-device.
+
+status —everything under Execution Controls & CLI Surface is now implemented and exercised:
+
+- The runner applies timeoutMs, preUploadDelayMs, and postUploadDelayMs from suite/test/CLI layers when scheduling uploads (results/20251010-182026/ESP32C3 shows the RAM tests running with noReset and zero delays).
+- Storage preload descriptors go through the dedicated CLI staging pass, capture *.storage.(stdout|stderr), and record storageCliCommand in metadata (results/20251010-181145/ESP32C3/runner-metadata/test_preload_module.js.json).
+- CLI overrides --pre-cli-delay, --post-cli-delay, and --no-reset are plumbed into config/provenance; we exercised --pre-cli-delay 0 and --no-reset repeatedly, and the wiring for --post-cli-delay is shared via the same loader branch.
+- Every run now writes run-summary.json (see results/20251010-182026/ESP32C3/run-summary.json), and metadata includes the enriched artefact pointers.
+- The only outstanding items are the follow-ups we logged separately (FIFO_FULL quirk, port failover, docs), not gaps in this feature slice.
+
+## Additional implementation notes
+
+Optimised the per-test wrapper:
+
+- Replaced getTime() fallback with a Date.now()-based timer throughout.
+- Added a normalizeResult helper to consolidate result parsing (status, reason, pass).
+- Simplified cleanup: after each test, result, resultStatus, and resultReason are reset to known values without repetitive typeof checks.
+- Adjusted run-tests-gordonV4.js to write per-suite artefacts with slashes converted to underscores (demo/getStarted → demo_getStarted.json) to avoid filesystem errors.
+- The new wrapper preserves all functionality—heartbeat, timeout, skip handling—while being easier to maintain. You’re all set to continue building suites and documentation with the streamlined execution flow.
+
+ Results handling now relies solely on status + reason:
+
+- Wrapper only emits {status, reason, duration_ms}; no more pass flag. Tests get new helpers __pass, __fail, __skip, __setTestResult injected automatically.
+- runOneTest, per-suite summaries, run summaries, and per-test metadata have been refactored to derive pass/fail/skip from status alone. JSON artefacts (runner-metadata, per-suite JSON, run-summary.json) now show status + counts; individual test entries list status, reason, duration_ms.
+- Demo flash-storage tests and demo/getStarted/test_basicSync1.js now use the helpers (with defensive try/catch), keeping behaviour the same.
+- Documentation updated: docs/V4_implementation_3.md notes the change, docs/run-tests-gordon-summary.md and docs/test-runner-cli-guide.md now describe the status-only contract, docs/test-writing-guide.md highlights the helpers (legacy examples noted), and docs/newDiscussionNotes.md reflects the new shape. Spec appendix now also mentions the lightweight assertion idea.
+- Harness runs (flash-storage, demo/getStarted) succeed with the simplified reporting.
+
+Created demonstration tests under tests/demo and updated the test writting guide docs/test-writing-guide.md:
+
+- with any new functionality and code changes not already documented (particularily the metadataV4 updates) and replace the examples with the new demo collection. Where it is prudent to refer to the output of a test in an example I would like to store a copy of the test output under test/.../example_results/ and make the documentation reference to there. Would you prefer to go a few sections at a time or prepare a full draft to then work through.
+
+- Created docs/test-harness-architecture.md with an outline covering the overview, discovery pipeline, wrapper anatomy, merge layers, execution/CLI interaction, artefacts, and future considerations. As you review the test-writing guide, feel free to request extra headings or notes for this technical reference—we can flesh it out incrementally without derailing the main doc.
+
+Added new board structures for:
+
+- Espruino supported board iwht the name PICO_R1_3. ref https://github.com/espruino/Espruino/blob/master/boards/PICO_R1_3.py
+- ESPRUINOWIFI ref https://github.com/espruino/Espruino/blob/master/boards/ESPRUINOWIFI.py
+- Espruino board, MDBT42Q ,defined ref https://github.com/espruino/Espruino/blob/master/boards/MDBT42Q.py
+  - Board boards/MDBT42Q  partially implemented needs to be completed
+
 
 ## Tests & Results
 

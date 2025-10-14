@@ -1,0 +1,11 @@
+{
+  "metadataVersion": 1,
+  "fixture": {
+    "ledPins": ["LED1", "LED2"],
+    "buttonPin": "BTN1",
+    "wifi": {
+      "ssid": "CHANGE_ME",
+      "password": "CHANGE_ME"
+    }
+  }
+}

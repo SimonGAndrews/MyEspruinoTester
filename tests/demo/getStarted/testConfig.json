@@ -1,0 +1,23 @@
+{
+  "suite": "demo/getStarted",
+  "metadataVersion": 1,
+  "execution": {
+    "order": [
+      "test_sync_basic.js",
+      "test_async_example.js",
+      "test_timeout_guard.js",
+      "test_fixture_usage.js",
+      "test_skip_on_missing_led.js",
+      "test_metadata_led_override.js"
+    ]
+  },
+  "config": {
+    "fixture": {
+      "demo": {
+        "message": "Hello from fixture",
+        "number": 42
+      }
+    }
+  },
+  "notes": "Demo suite fixture providing demo.message and demo.number"
+}

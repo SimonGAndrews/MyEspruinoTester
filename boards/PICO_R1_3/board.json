@@ -1,0 +1,36 @@
+{
+  "metadataVersion": 1,
+  "board": "PICO_R1_3",
+  "description": "Espruino Pico (rev 1.3/1.4) harness profile",
+  "upstream": {
+    "id": "PICO_R1_3",
+    "binary": "espruino_%v_pico_1r3.bin",
+    "binaries": [
+      { "filename": "espruino_%v_pico_1r3.bin", "description": "Standard build with USB, networking helpers, and graphics." },
+      { "filename": "espruino_%v_pico_1r3_wiznet.bin", "description": "WIZnet W5500 Ethernet build." },
+      { "filename": "espruino_%v_pico_1r3_cc3000.bin", "description": "TI CC3000 WiFi build." }
+    ]
+  },
+  "firmware": {
+    "pattern": "espruino_%v_pico_1r3.bin"
+  },
+  "flash": {
+    "type": "dfu-util",
+    "device": "STM32F401",
+    "notes": "Use the Espruino Web IDE or dfu-util via the USB bootloader to flash Pico binaries."
+  },
+  "suites": {
+    "default": [
+      "demo/getStarted",
+      "demo/CLI_Overrides"
+    ],
+    "available": [
+      "basicAsync",
+      "demo/CLI_Overrides",
+      "demo/getStarted",
+      "javascript-core",
+      "javascript-upstream",
+      "runner-metadata"
+    ]
+  }
+}

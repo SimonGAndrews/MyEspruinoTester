@@ -28,7 +28,7 @@ For each test descriptor:
 
 - The raw test source is read from disk.
 
-- `wrapTestSource` is called to embed the test inside a harness that declares result variables, optionally injects fixtures, and defines a keep-alive timer plus a done reporter. The wrapper catches synchronous errors, waits for result to be set (by `__setResult` or other test code), enforces a timeout (default 10 s), and prints a JSON payload with status, pass flag, duration, and reason when complete.
+- `wrapTestSource` is called to embed the test inside a harness that declares result variables, optionally injects fixtures, and defines a keep-alive timer plus a done reporter. The wrapper catches synchronous errors, waits for result to be set (by `__setResult` or other test code), enforces a timeout (default 10 s), and prints a JSON payload with status, duration, and reason when complete.
 
 - The wrapped source is saved to `results/.../sources/<testId>` for inspection and use in Espruino REPL for testing.
 
@@ -46,7 +46,7 @@ For each test descriptor:
 
 - The script searches stdout for the most recent line containing `__espruino_test__` (the JSON emitted by `wrapTestSource`). Absence of such a line raises a `no_result` error.
 
-- The JSON payload is parsed to produce a structured result containing the test file ID, status, pass boolean, optional reason, duration, and the captured stdout/stderr buffers. Invalid JSON raises `invalid_result_json`.
+- The JSON payload is parsed to produce a structured result containing the test file ID, status, optional reason, duration, and the captured stdout/stderr buffers. Invalid JSON raises `invalid_result_json`.
 
 ## Recording results and termination
 
