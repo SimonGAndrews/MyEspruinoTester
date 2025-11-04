@@ -1,0 +1,34 @@
+{
+  "metadataVersion": 1,
+  "cli": {
+    "RESET_BEFORE_SEND": false,
+    "SAVE_ON_SEND": 0,
+    "cliArgs": [
+      "--no-ble",
+      "--config", "RESET_BEFORE_SEND=false",
+      "--config", "SAVE_ON_SEND=0",
+      "--config", "ENV_ON_CONNECT=true",
+      "--config", "BAUD_RATE=9600",
+      "--config", "SERIAL_THROTTLE_SEND=true"
+    ],
+    "espruinoConfig": [
+      { "key": "RESET_BEFORE_SEND", "value": false },
+      { "key": "SAVE_ON_SEND", "value": 0 },
+      { "key": "ENV_ON_CONNECT", "value": true },
+      { "key": "BAUD_RATE", "value": 9600 },
+      { "key": "SERIAL_THROTTLE_SEND", "value": true }
+    ],
+    "fetchResultEval": "(function(){ if (typeof result === 'undefined' || result === null) { try { load(); } catch (e) { console.log('__NO_RESULT__'); return; } } if (typeof result !== 'undefined' && result !== null) console.log(JSON.stringify(result)); else console.log('__NO_RESULT__'); })();",
+    "fetchResultDelayMs": 3000
+  },
+  "loader": {
+    "ports": {
+      "serial": [
+        "/dev/ttyACM*",
+        "/dev/ttyUSB*",
+        "COM*"
+      ],
+      "baud": 9600
+    }
+  }
+}

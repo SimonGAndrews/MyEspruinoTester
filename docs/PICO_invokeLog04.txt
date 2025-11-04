@@ -1,0 +1,286 @@
+simon@OptiPlex3050:~/Espruino/MyEspruinoTester01$ node scripts/run-tests-gordonV4.js --board PICO_R1_3 --port /dev/ttyACM0 --suites demo/getStarted -v
+
+
+Acorn library not found - you'll need it for compiled code
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/targz.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/utf8.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/webrtc-connection.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/escodegen.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/esmangle.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/esprima.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/espruino.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/codeWriter.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/config.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/env.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/flasher.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/flasherESP8266.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/modules.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/notifications.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_chrome_serial.js
+No chrome.serial - Chrome Serial disabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_chrome_socket.js
+No chrome.sockets - Chrome Socket disabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_frame.js
+serial_frame: Not running in a browser
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_noble.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_ble.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_socket.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_audio.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_bluetooth.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_webrtc.js
+Remote Connection enabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_websocket_local.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_websocket_relay.js
+WebSocket relay support enabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/terminal.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/utils.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/assembler.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/boardJSON.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/compiler.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/getGitHub.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/localModules.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/minify.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/pretokenise.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/saveOnSend.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/setTime.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/unicode.js
+UTF8 Library loaded successfully
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/versionChecker.js
+Initialising CodeWriter
+Initialising Config
+Initialising Env
+Initialising Flasher
+Initialising FlasherESP8266
+Initialising Modules
+Initialising Notifications
+Initialising Serial
+  - Initialising Serial Noble Bluetooth LE
+  - Initialising Serial Node-ble Bluetooth LE
+  - Initialising Serial Node Serial
+  - Initialising Serial Node Socket
+  - Initialising Serial Web Audio
+  - Initialising Serial Web Bluetooth
+  - Initialising Serial Web Serial
+  - Initialising Serial Remote Connection
+  - Initialising Serial Websocket Relay
+Initialising RemoteConnection
+Initialising SerialWebSocketRelay
+Initialising Utils
+Initialising Status
+Initialising Assembler
+Initialising BoardJSON
+Initialising Compiler
+Initialising GetGitHub
+Initialising LocalModules
+Initialising Minify
+Initialising Unicode
+Initialising VersionChecker
+Initialising CoreModules
+Initialising Pretokenise
+Initialising SaveOnSend
+Initialising SetTime
+serial: Set Slow Write = true ('Throttle Send'='Auto')
+Noble: getPorts - initialising...
+Getting ports
+(node:216285) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+serial_node_ble error on scanDevices Error: No available adapters found
+    at Bluetooth.defaultAdapter (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-ble/src/Bluetooth.js:33:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async getAdapter (eval at loadJS (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/index.js:14:9), <anonymous>:72:15)
+serial: Connected Ok
+serial: Sending "\n"
+Got ""
+No prompt yet - sending another newline to wake device
+serial: Sending "\n"
+Got ""
+No Prompt found, got undefined - issuing Ctrl-C to try and break out
+serial: Splitting for Ctrl-C, delay 250
+serial: Sending "\u0003"
+Still no prompt - issuing another Ctrl-C
+serial: Splitting for Ctrl-C, delay 250
+serial: Sending "\u0003"
+Sending...
+serial: ---> "\u0010print(\"<\",\"<<\",JSON.stringify(process.env),\">>\",\">\")\n"
+serial: Sending "\u0010print(\"<\",\"<<\",JSO"
+serial: Sending "N.stringify(process"
+serial: Sending ".env),\">>\",\">\")\n"
+Sent
+Receiving...
+Noble: Didn't initialise in 10 seconds, disabling.
+No result found for "process.env" - just got ""
+
+Unable to retrieve board information.
+Connection Error?
+Minifying
+Minification complete
+serial: Sending "\n"
+Got ""
+No prompt yet - sending another newline to wake device
+serial: Sending "\n"
+Got ""
+No Prompt found, got undefined - issuing Ctrl-C to try and break out
+serial: Splitting for Ctrl-C, delay 250
+serial: Sending "\u0003"
+Still no prompt - issuing another Ctrl-C
+serial: Splitting for Ctrl-C, delay 250
+serial: Sending "\u0003"
+Sending...
+serial: ---> "\u0010reset();\n\u0010print()\n\u0010setTime(1760516620.862);E.setTimeZone(1)\n\u0010print(\"__RUNNER_READY__\")\n\n"
+serial: Splitting for reset(), delay 250
+serial: Sending "\u0010reset();\n"
+serial: Sending "\u0010print()\n\u0010setTime(1"
+serial: Sending "760516620.862);E.se"
+serial: Sending "tTimeZone(1)\n\u0010print"
+serial: Sending "(\"__RUNNER_READY__\""
+serial: Sending ")\n\n"
+Sent
+serial: Disconnected
+Test Run Summary
+================
+Board:    PICO_R1_3
+Board file: /home/simon/Espruino/MyEspruinoTester01/boards/PICO_R1_3/board.json
+Fixture file: /home/simon/Espruino/MyEspruinoTester01/boards/PICO_R1_3/fixture.json
+CLI file: /home/simon/Espruino/MyEspruinoTester01/boards/PICO_R1_3/cli.json
+Port:     /dev/ttyACM0
+Suites:   demo/getStarted
+Tests:    test_sync_basic.js, test_async_example.js, test_timeout_guard.js, test_fixture_usage.js, test_skip_on_missing_led.js, test_metadata_led_override.js
+Running test_sync_basic.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216381) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'type')
+    at getPortPath (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:774:12)
+    at Timeout.iterate [as _onTimeout] (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:824:14)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+
+Node.js v20.15.0
+FAIL (no_result)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Upload Complete
+Running test_async_example.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216422) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'type')
+    at getPortPath (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:774:12)
+    at Timeout.iterate [as _onTimeout] (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:824:14)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+
+Node.js v20.15.0
+FAIL (no_result)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Upload Complete
+Running test_timeout_guard.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216476) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'type')
+    at getPortPath (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:774:12)
+    at Timeout.iterate [as _onTimeout] (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:824:14)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+
+Node.js v20.15.0
+FAIL (no_result)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Upload Complete
+Running test_fixture_usage.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216530) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'type')
+    at getPortPath (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:774:12)
+    at Timeout.iterate [as _onTimeout] (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:824:14)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+
+Node.js v20.15.0
+FAIL (no_result)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Upload Complete
+Running test_skip_on_missing_led.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216584) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+FAIL (timeout)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Running test_metadata_led_override.js ... CLI command: espruino --port /dev/ttyACM0 --config BAUD_RATE=115200 --config BAUD_RATE=115200 --config BLUETOOTH_LOW_ENERGY=true --config BOARD_JSON_URL=http://www.espruino.com/json --config COMPILATION=true --config COMPILATION_URL=http://www.espruino.com:32766 --config ENV_ON_CONNECT=false --config MINIFICATION_LEVEL= --config MINIFICATION_Mangle=true --config MODULE_AS_FUNCTION=false --config MODULE_EXTENSIONS=.min.js|.js --config MODULE_MINIFICATION_LEVEL=ESPRIMA --config MODULE_URL=http://www.espruino.com/modules --config NPM_MODULES=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config SAVE_STORAGE_FILE= --config SERIAL_AUDIO=0 --config SERIAL_TCPIP= --config SERIAL_THROTTLE_SEND=false --config SET_TIME_ON_WRITE=false --config STORE_LINE_NUMBERS=true --config UI_MODE=Normal --config WEB_BLUETOOTH=true --no-ble --config SET_TIME_ON_WRITE=false --config RESET_BEFORE_SEND=false --config SAVE_ON_SEND=0 --config ENV_ON_CONNECT=false --config BAUD_RATE=115200 -e <wrapped> --board PICO_R1_3
+(node:216622) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'type')
+    at getPortPath (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:774:12)
+    at Timeout.iterate [as _onTimeout] (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/bin/espruino-cli.js:824:14)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+
+Node.js v20.15.0
+FAIL (no_result)
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Explicit board JSON supplied: "PICO_R1_3"
+Connecting to '/dev/ttyACM0'
+Connected
+Upload Complete
+
+Suite Summary
+============
+demo/getStarted: 0 passed, 6 failed, 0 skipped
+
+Run Summary
+==========
+0 passed, 6 failed, 0 skipped
+Results directory: /home/simon/Espruino/MyEspruinoTester01/results/20251015-092350/PICO_R1_3

@@ -1,14 +1,29 @@
 {
   "metadataVersion": 1,
   "board": "MDBT42Q",
-  "description": "MDBT42Q Bluetooth Module harness profile",
+  "description": "MDBT42Q Bluetooth module (nRF52832) harness profile",
   "upstream": {
     "id": "MDBT42Q",
-    "binary": "espruino_%v_mdbt42q.hex"
+    "binary": "espruino_%v_mdbt42q.hex",
+    "link": "https://espruino.com/MDBT42Q"
   },
   "firmware": {
     "pattern": "espruino_%v_mdbt42q.hex",
-    "notes": "Flash via the Espruino Web IDE or Nordic DFU (nRF52)."
+    "notes": "Flash the Nordic DFU HEX bundle via the Espruino Web IDE (BLE), nRF Connect DFU, or nrfutil serial DFU."
+  },
+  "flash": {
+    "type": "nrf52-dfu",
+    "transport": [
+      "BLE",
+      "Serial"
+    ],
+    "notes": "Hold BTN1 while powering the board to enter DFU mode. Release once the red LED starts pulsing, then use your preferred DFU utility to upload the HEX."
+  },
+  "console": {
+    "default": "EV_SERIAL1",
+    "tx": "D6",
+    "rx": "D8",
+    "baud": 9600
   },
   "suites": {
     "default": [

@@ -39,6 +39,10 @@
 - Suite artefacts now normalise path separators when writing per-suite JSON (e.g. `demo/getStarted` → `demo_getStarted.json`).
 - Wrapper now exposes `__pass`, `__fail`, `__skip`, and `__setTestResult`, encouraging the canonical `{ status, reason }` result contract while keeping legacy shapes compatible.
 - Result JSON and metadata now rely solely on `status` (pass/fail/skip); the legacy `pass` boolean is no longer emitted.
+
+### Board Coverage
+
+- Added MDBT42Q scaffolding (`boards/MDBT42Q/`) with CLI/fixture defaults and README notes so the nRF52832 module can participate in v4 runs.
 In Detail:
 
 - `scripts/run-tests-gordonV4.js`

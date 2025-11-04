@@ -1,14 +1,26 @@
 {
   "metadataVersion": 1,
   "cli": {
-    "ports": [
-      "/dev/ttyACM*",
-      "COM*"
-    ],
+    "ports": [ "/dev/ttyACM*", "COM*" ],
     "RESET_BEFORE_SEND": true,
-    "SAVE_ON_SEND": 1,
+    "SAVE_ON_SEND": 0,
     "cliArgs": [
-      "--no-ble"
+      "--no-ble",
+      "--config", "SET_TIME_ON_WRITE=false",
+      "--config", "RESET_BEFORE_SEND=true",
+      "--config", "SAVE_ON_SEND=0",
+      "--config", "ENV_ON_CONNECT=false",
+      "--config", "BAUD_RATE=115200"
+    ],
+    "espruinoConfig": [
+      { "key": "SET_TIME_ON_WRITE", "value": false },
+      { "key": "RESET_BEFORE_SEND", "value": true },
+      { "key": "SAVE_ON_SEND", "value": 0 },
+      { "key": "ENV_ON_CONNECT", "value": false },
+      { "key": "BAUD_RATE", "value": 115200 }
     ]
+  },
+  "loader": {
+    "ports": { "serial": [ "/dev/ttyACM*", "COM*" ], "baud": 115200 }
   }
 }

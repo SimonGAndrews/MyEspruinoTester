@@ -21,8 +21,7 @@
   },
   "suites": {
     "default": [
-      "demo/getStarted",
-      "demo/CLI_Overrides"
+      "demo/getStarted"
     ],
     "available": [
       "basicAsync",

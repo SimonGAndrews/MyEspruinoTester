@@ -1,0 +1,10 @@
+{
+  "metadataVersion": 1,
+  "fixture": {
+    "bluetooth": {
+      "adapter": "onboard",
+      "mode": "peripheral"
+    },
+    "peripherals": []
+  }
+}

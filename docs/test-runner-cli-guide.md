@@ -131,6 +131,37 @@ Common issues:
 
 ---
 
+## `scripts/run-tests-gordonV4.js`
+**Purpose:** v4 runner that layers session defaults → board metadata (`board.json`, `fixture.json`, `cli.json`) → suite `testConfig.json` → per-test JSON headers → CLI overrides, then shells out to the Espruino CLI once per test. Writes per-test metadata, logs, wrapped sources, and suite/run summaries under `results/<timestamp>/<board>/`.
+
+Usage:
+```bash
+node scripts/run-tests-gordonV4.js \
+  --board ESP32C3 --port /dev/ttyACM0 --suites demo/getStarted \
+  --fixtures configs/lab.json --serial-debug
+```
+
+Options:
+- `--board`, `-b` *(required)*: board directory containing `board.json`.
+- `--port`, `-p` *(required)*: serial or BLE port to open (globs from metadata apply when absent).
+- `--suites`, `-s`: comma-separated suites. Defaults to `board.json.suites.default`.
+- `--fixtures`, `-f`: path to a JSON document merged into `config.fixture`.
+- `--quiet`, `-q`: suppress CLI stderr chatter while retaining captured logs.
+- `--serial-debug`: enable Gordon’s verbose serial logging (`Espruino.Core.Serial.debug()`), useful when diagnosing CLI/device churn.
+- `--pre-cli-delay`, `--post-cli-delay`: override metadata delays (milliseconds).
+- `--no-reset`: request the harness to honour no-reset behaviour (`loader.noReset=true`, `RESET_BEFORE_SEND=false`).
+- `--help`, `-h`: show usage.
+
+Behaviour:
+- Builds a provenance trail for every layer applied to the test configuration.
+- Persists per-test metadata (`runner-metadata/<test>.json`), wrapped sources, suite summaries, and a top-level `run-summary.json`.
+- Honors per-test overrides such as `timeoutMs`, `storagePreload`, and CLI/fixture merges from JSON headers.
+
+Common issues:
+- `Error: unknown suites`: suite name not listed in the board metadata’s `suites.available`.
+- `no_result`: the wrapped test never printed a JSON result—ensure helpers (`__pass`, `__fail`, etc.) are used or `result` is assigned.
+- `Unable to retrieve board information` warning during warm-up: harmless when `ENV_ON_CONNECT=false` metadata is applied (common on Pico).
+
 ## `scripts/run-node-baseline.js`
 **Purpose:** Run suites locally under Node.js as a baseline comparison for pure JavaScript tests (no hardware).
 

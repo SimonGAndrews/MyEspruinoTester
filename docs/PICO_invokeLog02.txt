@@ -1,0 +1,144 @@
+simon@OptiPlex3050:~/Espruino/MyEspruinoTester01$ espruino -v \
+  --config RESET_BEFORE_SEND=false \
+  --config SET_TIME_ON_WRITE=false \
+  --config SAVE_ON_SEND=0 \
+  -p /dev/ttyACM0 test.js
+0.1.61
+Espruino Command-line Tool 0.1.61
+-----------------------------------
+
+Acorn library not found - you'll need it for compiled code
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/targz.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/utf8.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/webrtc-connection.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/escodegen.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/esmangle.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/libs/esprima/esprima.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/espruino.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/codeWriter.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/config.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/env.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/flasher.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/flasherESP8266.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/modules.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/notifications.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_chrome_serial.js
+No chrome.serial - Chrome Serial disabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_chrome_socket.js
+No chrome.sockets - Chrome Socket disabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_frame.js
+serial_frame: Not running in a browser
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_noble.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_ble.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_node_socket.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_audio.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_bluetooth.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_web_serial.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_webrtc.js
+Remote Connection enabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_websocket_local.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/serial_websocket_relay.js
+WebSocket relay support enabled
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/terminal.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/core/utils.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/assembler.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/boardJSON.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/compiler.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/getGitHub.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/localModules.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/minify.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/pretokenise.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/saveOnSend.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/setTime.js
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/unicode.js
+UTF8 Library loaded successfully
+Found /home/simon/Espruino/MyEspruinoTester01/EspruinoTools/plugins/versionChecker.js
+Initialising CodeWriter
+Initialising Config
+Initialising Env
+Initialising Flasher
+Initialising FlasherESP8266
+Initialising Modules
+Initialising Notifications
+Initialising Serial
+  - Initialising Serial Noble Bluetooth LE
+  - Initialising Serial Node-ble Bluetooth LE
+  - Initialising Serial Node Serial
+  - Initialising Serial Node Socket
+  - Initialising Serial Web Audio
+  - Initialising Serial Web Bluetooth
+  - Initialising Serial Web Serial
+  - Initialising Serial Remote Connection
+  - Initialising Serial Websocket Relay
+Initialising RemoteConnection
+Initialising SerialWebSocketRelay
+Initialising Utils
+Initialising Status
+Initialising Assembler
+Initialising BoardJSON
+Initialising Compiler
+Initialising GetGitHub
+Initialising LocalModules
+Initialising Minify
+Initialising Unicode
+Initialising VersionChecker
+Initialising CoreModules
+Initialising Pretokenise
+Initialising SaveOnSend
+Initialising SetTime
+Command-line option set Espruino.Config.RESET_BEFORE_SEND to false
+Command-line option set Espruino.Config.SET_TIME_ON_WRITE to false
+Command-line option set Espruino.Config.SAVE_ON_SEND to 0
+Connecting to '/dev/ttyACM0'
+serial: Set Slow Write = true ('Throttle Send'='Auto')
+Noble: getPorts - initialising...
+Getting ports
+(node:185761) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-blob/package.json' of 'server.js'. Please either fix that or report it to the modulr
+(Use `node --trace-deprecation ...` to show where the warning was created)
+noble: Initialization of USB device failed: ENODEV, No such device
+serial_node_ble error on scanDevices Error: No available adapters found
+    at Bluetooth.defaultAdapter (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/node_modules/node-ble/src/Bluetooth.js:33:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async getAdapter (eval at loadJS (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/index.js:14:9), <anonymous>:72:15)
+serial: Connected Ok
+serial: Sending "\n"
+Received a prompt after sending newline... good!
+Sending...
+serial: ---> "\u0010print(\"<\",\"<<\",JSON.stringify(process.env),\">>\",\">\")\n"
+serial: Sending "\u0010print(\"<\",\"<<\",JSO"
+serial: Sending "N.stringify(process"
+serial: Sending ".env),\">>\",\">\")\n"
+Sent
+Sent
+Receiving...
+Got "< << {\"VERSION\":\"2v27\",\"GIT_COMMIT\":\"08502f84a\",\"BOARD\":\"PICO_R1_3\",\"RAM\":98304,\"FLASH\":393216,\"STORAGE\":49152,\"SERIAL\":\"40005a00-13513335-32373134\",\"CONSOLE\":\"USB\",\"MODULES\":\"Flash,Storage,"
+
+Found PICO_R1_3, 2v27
+Loading http://www.espruino.com/json/PICO_R1_3.json
+{
+  host: 'www.espruino.com',
+  port: null,
+  path: '/json/PICO_R1_3.json',
+  method: 'GET'
+}
+Board JSON loaded
+Firmware >1.43 supports faster writes over USB
+serial: Set Slow Write = false ('Throttle Send'='Auto')
+FIRMWARE: Current 2v27, Available 2v27
+Connected
+Minifying
+Minification complete
+serial: Sending "\n"
+Received a prompt after sending newline... good!
+serial: Sending "\u0010print()\n\u0010console.log(\"Test file executed\");\n\n"
+undefined:56
+    } else throw err;
+           ^
+
+TypeError: Cannot read properties of undefined (reading 'length')
+    at writeChunk (eval at loadJS (/home/simon/Espruino/MyEspruinoTester01/EspruinoTools/index.js:14:9), <anonymous>:248:27)
+
+Node.js v20.15.0
+simon@OptiPlex3050:~/Espruino/MyEspruinoTester01$ 
