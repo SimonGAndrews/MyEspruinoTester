@@ -4,7 +4,7 @@
 
 - Target board: MDBT42Q (nRF52832 module, console on Serial1 @ 9600 baud).
 - Harness command: `node scripts/run-tests-gordonV4.js --board MDBT42Q --port /dev/ttyUSB0 --suites demo/getStarted`.
-- Observed symptom: Every test run ends in `no_result`. Logs show `__NO_RESULT__` produced by the fallback evaluation (the extra `load(); console.log(JSON.stringify(result));` step we added during analysis) rather than the expected `__espruino_test__` JSON record.
+- Observed symptom: Every test run ends in `no_result`. Logs show `__NO_RESULT__` produced by the fallback evaluation rather than the expected `__espruino_test__` JSON record.
 - Manual CLI/REPL runs of the individual tests succeed (JSON output is printed), but they take up to ~6 seconds in the guard test before failing with `setWatch callback never fired`.
 - Harness disconnects (or evaluates the fallback) before the board prints its JSON when running automatically.
 
@@ -118,8 +118,8 @@
 ## Recommendations
 
 - **Short term:**  
-  - Add `--sleep 3` to MDBT42Q CLI metadata or set `postUploadDelayMs` to 3000 so the harness waits for guard tests to complete before its fallback evaluation runs.
-  - Keep the fallback evaluation (the extra CLI invocation added during this analysis that runs `load(); console.log(JSON.stringify(result));`) to capture the deferred result even if the guard fires after the upload finishes.
+  - Add `--sleep 3` to MDBT42Q CLI metadata or set `postUploadDelayMs` to 3000 so the harness waits for guard tests to complete before considering fallback.
+  - Keep fallback `load()` to catch the result even if the guard triggers after we sleep.
 
 - **Medium term:**  
   - Investigate why CLI with `SAVE_ON_SEND=0` still writes to `.bootcde`. Possibly tweak to send to RAM only (`-e` mode).
@@ -128,3 +128,4 @@
 - **Long term:**  
   - Extend harness to detect board-specific delays automatically (based on metadata) and confirm guard operations.
   - Work with Espruino CLI maintainers if needed to support “fire and wait for JSON” natively without extra scripts.
+

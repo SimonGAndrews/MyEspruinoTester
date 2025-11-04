@@ -194,63 +194,6 @@ function detectConnectionIssue(stdout = '', stderr = '', port) {
   return null;
 }
 
-function extractTestRecordFromOutput(output = '', testId) {
-  let record = null;
-  if (!output) return record;
-  output.split(/\r?\n/).forEach((line) => {
-    if (record) return;
-    if (!line.includes('__espruino_test__')) return;
-    const match = line.match(/(\{.*\})/);
-    if (!match) return;
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (parsed && parsed.__espruino_test__) {
-        const status = typeof parsed.status === 'string' ? parsed.status : 'fail';
-        record = {
-          status,
-          reason: parsed.reason != null ? parsed.reason : null,
-          duration_ms: parsed.duration_ms != null ? parsed.duration_ms : null,
-          file: parsed.file || testId,
-        };
-      }
-    } catch (_) {
-      record = null;
-    }
-  });
-  return record;
-}
-
-function extractFallbackRecordFromOutput(output = '', testId) {
-  if (!output) return null;
-  let record = null;
-  output.split(/\r?\n/).forEach((line) => {
-    if (record) return;
-    const match = line.match(/(\{.*\})/);
-    if (!match) return;
-    try {
-      const parsed = JSON.parse(match[1]);
-      if (parsed && typeof parsed === 'object' && !parsed.__espruino_test__) {
-        let status = typeof parsed.status === 'string' ? parsed.status : null;
-        if (!status) {
-          if (parsed.skip) status = 'skip';
-          else if (typeof parsed.pass !== 'undefined') status = parsed.pass ? 'pass' : 'fail';
-          else status = parsed ? 'pass' : 'fail';
-        }
-        if (status !== 'pass' && status !== 'fail' && status !== 'skip') status = 'fail';
-        record = {
-          status,
-          reason: parsed.reason != null ? parsed.reason : null,
-          duration_ms: parsed.duration_ms != null ? parsed.duration_ms : null,
-          file: testId,
-        };
-      }
-    } catch (_) {
-      record = null;
-    }
-  });
-  return record;
-}
-
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 2; i < argv.length; i++) {
@@ -264,10 +207,6 @@ function parseArgs(argv) {
       const normalized = normalizeKey(key);
       if (normalized === 'serial-debug') {
         args.serialDebug = true;
-        continue;
-      }
-      if (normalized === 'cli-transcript') {
-        args.cliTranscript = true;
         continue;
       }
       if (value !== undefined) {
@@ -416,58 +355,62 @@ async function warmup(E, port, quiet = false, options = {}) {
 function composeWrappedTest(fileId, src, timeoutSec, contextInjection) {
   const injections = [];
   injections.push(`var __TEST_TIMEOUT_SEC=${Math.max(1, timeoutSec)};`);
-  injections.push(`var __TEST_FILE=${JSON.stringify(fileId)};`);
-  injections.push('var result;');
-  injections.push('var resultStatus = null;');
-  injections.push('var resultReason = null;');
-  injections.push('var __RESULT_SENT = false;');
-  injections.push('var __RESULT_T0 = Date.now();');
-  injections.push('var __RESULT_TIMEOUT = null;');
-  injections.push('function __normaliseResult(value) {');
-  injections.push('  var status = null;');
-  injections.push('  var reason = null;');
-  injections.push('  if (value && typeof value === \'object\') {');
-  injections.push('    if (typeof value.status === \'string\') status = value.status.toLowerCase();');
-  injections.push('    if (value.reason != null) reason = value.reason;');
-  injections.push('    if (!status) {');
-  injections.push('      if (value.skip) status = \'skip\';');
-  injections.push('      else if (typeof value.pass !== \'undefined\') status = value.pass ? \'pass\' : \'fail\';');
-  injections.push('    }');
-  injections.push('  } else if (typeof value === \'string\') {');
-  injections.push('    status = value.toLowerCase();');
-  injections.push('  } else if (typeof value === \'boolean\') {');
-  injections.push('    status = value ? \'pass\' : \'fail\';');
-  injections.push('  } else if (value != null) {');
-  injections.push('    status = \'pass\';');
-  injections.push('  }');
-  injections.push('  if (status !== \'pass\' && status !== \'fail\' && status !== \'skip\') status = \'fail\';');
-  injections.push('  return { status: status, reason: reason };');
-  injections.push('}');
-  injections.push('function __emitResult(value) {');
-  injections.push('  if (__RESULT_SENT) return;');
-  injections.push('  __RESULT_SENT = true;');
-  injections.push('  if (__RESULT_TIMEOUT) clearTimeout(__RESULT_TIMEOUT);');
-  var pollClearLogic = 
-`  if (typeof __RESULT_POLL !== 'undefined' && __RESULT_POLL) clearInterval(__RESULT_POLL);
-  var normalized = __normaliseResult(value);
-  resultStatus = normalized.status;
-  resultReason = normalized.reason != null ? normalized.reason : (normalized.status === 'fail' && value && value.message ? value.message : null);
-  var duration = Date.now() - __RESULT_T0;
-  var record = { __espruino_test__: true, file: __TEST_FILE, status: resultStatus, duration_ms: duration, reason: resultReason };
-  print(JSON.stringify(record));
-  result = undefined;
-};`;
-  injections.push(pollClearLogic);
-  injections.push('function __setResultObject(obj){ result = obj; __emitResult(obj); }');
-  injections.push('function __setTestResult(__status, __reason){ __setResultObject({ status: __status, reason: __reason != null ? __reason : null }); }');
+  injections.push('function __setTestResult(__status, __reason){ result = { status: __status, reason: __reason || null }; }');
   injections.push('function __pass(__reason){ __setTestResult(\'pass\', __reason); }');
   injections.push('function __fail(__reason){ __setTestResult(\'fail\', __reason); }');
   injections.push('function __skip(__reason){ __setTestResult(\'skip\', __reason); }');
-  injections.push('__RESULT_TIMEOUT = setTimeout(function(){ __emitResult({ status: \'fail\', reason: \'timeout\' }); }, (__TEST_TIMEOUT_SEC||5)*1000);');
-  injections.push("var __RESULT_POLL = setInterval(function(){ if (__RESULT_SENT) { clearInterval(__RESULT_POLL); return; } if (typeof result !== 'undefined' && result !== null) { __emitResult(result); } }, 50);");
   if (contextInjection) injections.push(contextInjection);
   const prologue = injections.join('\n') + '\n';
-  return prologue + src;
+  const epilogue = `
+(function(){
+  var __t0 = Date.now();
+  var __deadline = __t0 + ((__TEST_TIMEOUT_SEC||5)*1000);
+  function done(value){
+    var normalized = normalizeResult(value);
+    var status = normalized.status;
+    var reason = normalized.reason;
+    if (typeof resultStatus !== 'undefined' && resultStatus != null) status = resultStatus;
+    if (reason == null && typeof resultReason !== 'undefined' && resultReason != null) reason = resultReason;
+    if (status !== 'pass' && status !== 'fail' && status !== 'skip') status = 'fail';
+    var out={__espruino_test__:true,file:"${fileId}",status:status,duration_ms:(Date.now() - __t0),reason: reason || null};
+    print(JSON.stringify(out));
+    if (typeof result !== 'undefined') result = undefined;
+    if (typeof resultStatus !== 'undefined') resultStatus = null;
+    if (typeof resultReason !== 'undefined') resultReason = null;
+  }
+  function normalizeResult(value){
+    var status = null;
+    var reason = null;
+    if (value && typeof value === 'object') {
+      if (typeof value.status === 'string') {
+        status = String(value.status).toLowerCase();
+      }
+      if (value.reason != null) reason = value.reason;
+      if (!status) {
+        if (value.skip) status = 'skip';
+        else if (typeof value.pass !== 'undefined') status = value.pass ? 'pass' : 'fail';
+        else status = value ? 'pass' : 'fail';
+      }
+    } else if (typeof value === 'string') {
+      status = value.toLowerCase();
+    } else {
+      status = value ? 'pass' : 'fail';
+    }
+    if (status !== 'pass' && status !== 'fail' && status !== 'skip') {
+      status = 'fail';
+    }
+    return { status: status, reason: reason };
+  }
+  (function wait(){
+    if (typeof result!=='undefined') return done(result);
+    if (Date.now()<__deadline) return setTimeout(wait,50);
+    resultStatus = 'fail';
+    resultReason = 'timeout';
+    done(false);
+  })();
+})();
+`;
+  return prologue + src + epilogue;
 }
 
 async function runOneTest(
@@ -500,28 +443,6 @@ async function runOneTest(
     let done = false;
     const cmd = process.env.ESPRUINO_CLI || 'espruino';
     const args = ['--port', port];
-    const captureTranscript = Boolean(options.captureTranscript);
-    const transcriptChunks = captureTranscript ? [] : null;
-    const recordTranscript = (stream, data) => {
-      if (!transcriptChunks) return;
-      if (!data) return;
-      const buffer = Buffer.isBuffer(data) ? Buffer.from(data) : Buffer.from(String(data));
-      transcriptChunks.push({ stream, buffer });
-    };
-    const formatTranscript = () => {
-      if (!transcriptChunks || !transcriptChunks.length) return '';
-      return transcriptChunks
-        .map(({ stream, buffer }, index) =>
-          JSON.stringify({
-            index,
-            stream,
-            length: buffer.length,
-            utf8: buffer.toString('utf8'),
-            hex: buffer.toString('hex'),
-          })
-        )
-        .join('\n');
-    };
 
     const baud =
       cliConfig.BAUD_RATE ||
@@ -558,6 +479,7 @@ async function runOneTest(
       args.push(...cliConfig.cliArgs);
     }
 
+    args.push('-e', wrapped);
     let boardArg;
     try {
       boardArg = resolveBoardArg(profile, loaderConfig);
@@ -576,8 +498,6 @@ async function runOneTest(
     }
     if (boardArg) args.push('--board', boardArg);
 
-    const baseArgs = args.slice();
-    args.push('-e', wrapped);
     if (!quiet) {
       const previewArgs = args.map((item) => (item === wrapped ? '<wrapped>' : item));
       console.log('CLI command:', [cmd, ...previewArgs].join(' '));
@@ -588,28 +508,6 @@ async function runOneTest(
       let out = '';
       let err = '';
       const cliCommand = [cmd, ...args];
-      const resolveWith = (payload) =>
-        resolve({
-          ...payload,
-          cliArgs: cliCommand,
-          cliTranscript: captureTranscript ? formatTranscript() : null,
-        });
-      const runEvalCommand = (expression) =>
-        new Promise((resolveEval) => {
-          const evalArgs = baseArgs.slice();
-          evalArgs.push('-e', expression);
-          const childEval = spawn(cmd, evalArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
-          let evalOut = '';
-          let evalErr = '';
-          childEval.stdout.on('data', (d) => {
-            evalOut += d.toString();
-          });
-          childEval.stderr.on('data', (d) => {
-            evalErr += d.toString();
-            if (!quiet) process.stderr.write(d.toString());
-          });
-          childEval.on('close', () => resolveEval({ out: evalOut, err: evalErr }));
-        });
       const timer = setTimeout(() => {
         if (!done) {
           done = true;
@@ -617,13 +515,14 @@ async function runOneTest(
             child.kill('SIGINT');
           } catch (_) {}
           const finish = () =>
-            resolveWith({
+            resolve({
               status: 'fail',
               reason: 'timeout',
               output: out || err,
               stderr: err,
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
+              cliArgs: cliCommand,
               connectionIssue: null,
             });
           if (resolvedPostDelay > 0) return setTimeout(finish, resolvedPostDelay);
@@ -633,86 +532,58 @@ async function runOneTest(
 
       child.stdout.on('data', (d) => {
         out += d.toString();
-        recordTranscript('stdout', d);
       });
       child.stderr.on('data', (d) => {
         err += d.toString();
-        recordTranscript('stderr', d);
         if (!quiet) process.stderr.write(d.toString());
       });
       child.on('close', () => {
         if (done) return;
         clearTimeout(timer);
-        let record = extractTestRecordFromOutput(out, path.basename(testPath));
-        const finish = async () => {
-          let outputForResolve = out;
-          let stderrForResolve = err;
-          let connectionIssue = detectConnectionIssue(out, err, port);
-          if (!record && typeof cliConfig.fetchResultEval === 'string' && cliConfig.fetchResultEval.trim()) {
-            if (cliConfig.fetchResultDelayMs) {
-              await new Promise((resolveDelay) => setTimeout(resolveDelay, Math.max(0, cliConfig.fetchResultDelayMs)));
-            }
-            const evalResult = await runEvalCommand(cliConfig.fetchResultEval.trim());
-            if (evalResult) {
-              if (evalResult.out) {
-                outputForResolve = outputForResolve
-                  ? `${outputForResolve.replace(/\s*$/, '')}\n${evalResult.out}`
-                  : evalResult.out;
-              }
-              if (evalResult.err) {
-                stderrForResolve = stderrForResolve
-                  ? `${stderrForResolve.replace(/\s*$/, '')}\n${evalResult.err}`
-                  : evalResult.err;
-              }
-              if (!record) {
-                record = extractFallbackRecordFromOutput(evalResult.out, path.basename(testPath));
-              }
-              if (!connectionIssue) {
-                connectionIssue = detectConnectionIssue(evalResult.out, evalResult.err, port);
+        let record = null;
+        out.split(/\r?\n/).forEach((line) => {
+          if (line.includes('__espruino_test__')) {
+            const match = line.match(/(\{.*\})/);
+            if (match) {
+              try {
+                record = JSON.parse(match[1]);
+              } catch (_) {
+                record = null;
               }
             }
           }
+        });
+        const finish = () => {
+          const connectionIssue = detectConnectionIssue(out, err, port);
           if (record) {
-            const statusFromRecord = typeof record.status === 'string' ? record.status : 'fail';
-            resolveWith({
+            var statusFromRecord = (record && typeof record.status === 'string') ? record.status : 'fail';
+            resolve({
               status: statusFromRecord,
-              output: outputForResolve,
-              stderr: stderrForResolve,
-              reason: record.reason != null ? record.reason : null,
-              duration_ms: record.duration_ms != null ? record.duration_ms : null,
-              file: record.file ? record.file : path.basename(testPath),
+              output: out,
+              stderr: err,
+              reason: record && record.reason != null ? record.reason : null,
+              duration_ms: record && record.duration_ms != null ? record.duration_ms : null,
+              file: record && record.file ? record.file : path.basename(testPath),
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
+              cliArgs: cliCommand,
               connectionIssue: connectionIssue,
             });
           } else {
-            resolveWith({
+            resolve({
               status: 'fail',
-              output: outputForResolve,
-              stderr: stderrForResolve,
+              output: out,
+              stderr: err,
               reason: connectionIssue || 'no_result',
               wrappedSource: wrapped,
               timeout_ms: timeoutMs,
+              cliArgs: cliCommand,
               connectionIssue: connectionIssue,
             });
           }
         };
-        const finishWrapper = () => {
-          finish().catch((error) => {
-            const errorMessage = error && error.stack ? error.stack : error ? String(error) : 'post_eval_error';
-            resolveWith({
-              status: 'fail',
-              output: out,
-              stderr: err ? `${err.replace(/\s*$/, '')}\n${errorMessage}` : errorMessage,
-              reason: 'post_eval_error',
-              wrappedSource: wrapped,
-              timeout_ms: timeoutMs,
-              connectionIssue: null,
-            });
-          });
-        };
-        if (resolvedPostDelay > 0) return setTimeout(finishWrapper, resolvedPostDelay);
-        finishWrapper();
+        if (resolvedPostDelay > 0) return setTimeout(finish, resolvedPostDelay);
+        finish();
       });
     };
 
@@ -982,7 +853,6 @@ async function main() {
   }
 
   const quietMode = Boolean(args.quiet);
-  const captureCliTranscript = Boolean(args.cliTranscript);
 
   const E = ensureEspruinoModule();
   await warmup(E, resolvedPort, quietMode, {
@@ -1135,10 +1005,10 @@ async function main() {
         perTestConfig,
         quietMode,
         fixtureInjectionCode,
-        { preDelayMs: effectivePreDelay, postDelayMs: basePostDelay ?? 0, captureTranscript: captureCliTranscript }
+        { preDelayMs: effectivePreDelay, postDelayMs: basePostDelay ?? 0 }
       );
 
-      const { wrappedSource, timeout_ms, cliArgs, connectionIssue, cliTranscript, ...resultBase } = runResult;
+      const { wrappedSource, timeout_ms, cliArgs, connectionIssue, ...resultBase } = runResult;
       const resultForMeta = { ...resultBase };
       if (!resultForMeta || typeof resultForMeta.status !== 'string') {
         resultForMeta.status = 'fail';
@@ -1204,12 +1074,6 @@ async function main() {
         fs.writeFileSync(path.join(logsDir, `${test.id}.stdout`), resultForMeta.output || '');
         fs.writeFileSync(path.join(logsDir, `${test.id}.stderr`), resultForMeta.stderr || '');
       }
-      let cliTranscriptRelPath = null;
-      if (writeLogs && captureCliTranscript && cliTranscript) {
-        const rel = path.join('logs', `${test.id}.cli.ndjson`);
-        fs.writeFileSync(path.join(resultsDir, rel), cliTranscript);
-        cliTranscriptRelPath = rel;
-      }
       if (writeMetadata) {
         const metadataPath = path.join(metadataDir, `${test.id}.json`);
         const configForLog = cloneConfig(perTestConfig);
@@ -1246,7 +1110,6 @@ async function main() {
             sources: writeSources ? path.join('sources', test.id) : null,
             stdout: writeLogs ? path.join('logs', `${test.id}.stdout`) : null,
             stderr: writeLogs ? path.join('logs', `${test.id}.stderr`) : null,
-            cliTranscript: cliTranscriptRelPath,
             storageStdout: storageStdoutPath,
             storageStderr: storageStderrPath,
           },
