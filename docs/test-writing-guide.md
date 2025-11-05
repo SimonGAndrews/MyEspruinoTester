@@ -4,7 +4,7 @@ This guide explains how individual test files are structured, how the Gordon-sty
 
 ## Basic Concepts
 
-- **Wrapper:** The harness prepends/appends a small helper bundle to every test before it is sent to the Espruino CLI. It injects fixtures, runs keep-alive heartbeats, enforces timeouts, and normalises results. Section 2 walks through it in more detail, and `docs/test-harness-architecture.md` provides the full breakdown.
+- **Wrapper:** The harness prepends/appends a small helper bundle to every test before it is sent to the Espruino CLI. It injects fixtures, enforces timeouts, and normalises results. Section 2 walks through it in more detail, and `docs/test-harness-architecture.md` provides the full breakdown.
 - **Helpers:** Tests get `__pass`, `__fail`, `__skip`, and `__setTestResult` injected automatically so they can report outcomes consistently. Legacy patterns still work, but the helpers keep new tests simple.
 - **Fixtures:** Define variables such as GPIO pins or WIFI credentials needed for the tests.  Suites can define `global.ESPRUINO_FIXTURES` via `testConfig.json`; individual tests can override with JSON metadata definitions or skip when data is missing.
 - **Metadata:** Per-test JSON headers let you control timeout, CLI arguments, fixtures, storage preload, and other behaviour without touching the harness.

@@ -7,18 +7,18 @@ This document walks through the execution pipeline in `scripts/run-tests-gordonV
 - **Location:** `scripts/run-tests-gordonV4.js` – `parseArgs(argv)`
 - **Key behaviour:** Converts short/long flags, handles `--serial-debug`, `--quiet`, `--fixtures`, and captures positional fallbacks.
 
-## 2. Board Profile Loading
-- **Purpose:** Load board metadata (board.json, cli.json, fixture.json) and convert it into a baseline configuration.
+## 2. Session Defaults & Board Profile
+- **Purpose:** Load session defaults alongside board metadata (`board.json`, optional `fixture.json`/`cli.json`) and convert them into a baseline configuration.
 - **Location:** `lib/v4/boardProfile.js` – `loadBoardProfile(boardName, REPO_ROOT)`
 - **Key behaviour:** Ensures metadata files exist, parses JSON, and exposes a `profile` object containing board, CLI, loader, and fixture branches.
 
-## 3. Session Defaults Merge
-- **Purpose:** Seed the run with repository-level defaults (serial ports, CLI configs).
+## 3. Base Configuration Merge
+- **Purpose:** Seed the run with repository-level defaults (serial ports, CLI configs) and overlay board metadata, producing the shared base config before per-test overrides.
 - **Location:** `lib/v4/runConfig.js` – `loadSessionDefaults()`, merged via `mergeConfig`
-- **Key behaviour:** Combines session defaults, board profile config, and sets the board name on `loader.board`.
+- **Key behaviour:** Combines session defaults, board profile config, and sets the board name on `loader.board`. CLI overrides collected from the command line are applied later during per-test assembly.
 
-## 4. Suite Resolution and Metadata Load
-- **Purpose:** Decide which suites to run and gather their configuration overlays.
+## 4. Suite Resolution & Metadata Load
+- **Purpose:** Decide which suites to run and gather their configuration overlays (`testConfig.json`).
 - **Locations:**  
   - `scripts/run-tests-gordonV4.js` – `resolveSuites(profile.config.board, args.suites)`  
   - `lib/v4/runConfig.js` – `loadSuiteConfig(REPO_ROOT, suite)`
@@ -47,11 +47,11 @@ This document walks through the execution pipeline in `scripts/run-tests-gordonV
 - **Key behaviour:** Builds `<results>/<stamp>/<board>/` structure, influenced by `profile.config.loader.output`.
 
 ## 9. Per-Test Configuration Assembly
-- **Purpose:** For each test, merge session, board, suite, test, and CLI layers into a final config snapshot.
+- **Purpose:** For each test, merge the suite layer, per-test metadata, and CLI overrides into a final config snapshot layered on top of the base configuration.
 - **Locations:**  
   - `lib/v4/runConfig.js` – `mergeConfig`, `cloneConfig`  
   - `scripts/run-tests-gordonV4.js` – per-test loop inside `main()`
-- **Key behaviour:** Parses per-test metadata (`parseTestMetadata`), gathers fixture requirements, and normalises loader delays (`preUploadDelayMs`, `postUploadDelayMs`).
+- **Key behaviour:** Parses per-test metadata (`parseTestMetadata`), merges the suite/test layers, gathers fixture requirements, and normalises loader delays (`preUploadDelayMs`, `postUploadDelayMs`).
 
 ## 10. Storage Preload (Conditional)
 - **Purpose:** Stage files using the Espruino CLI `--storage` option before running the main test.
