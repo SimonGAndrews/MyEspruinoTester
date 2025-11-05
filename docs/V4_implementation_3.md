@@ -1,5 +1,13 @@
 # V4 implementation phase 3
 
+## Current Status (November 2025)
+
+- Active development continues from branch `V5` (commit `b92e34d`), which retains all v4 harness work while rolling back the unsuccessful MDBT42Q experiments.
+- MDBT42Q bring-up remains open; see `docs/issues/MDBT42Q_harness_upload_issue.md` for the latest analysis, reproduction steps, and suggested next actions. The prior experimental code is preserved on branch `mdbt42q-experiments` if deeper debugging is required.
+- Wrapper behaviour is back to the documented helper-only form (section 2 of `docs/test-writing-guide.md`), so new tests should continue to rely on `__pass/__fail/__skip` without the temporary polling helpers we trialled.
+- Gordon’s serial debug flag (`--serial-debug`) is available and drives the enhanced logging in `EspruinoTools/core/serial.js`; retain this option when investigating transport issues on future boards.
+- All other boards previously enabled (ESP32C3, Pico, etc.) continue to run with the v4 harness; perform a quick smoke test after any future cherry-picks from `mdbt42q-experiments`.
+
 ## Phase Plan
 
 - **Load & Merge Layers** – ✅ already implemented during phase 2 burn-in

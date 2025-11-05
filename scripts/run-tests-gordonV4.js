@@ -475,8 +475,36 @@ async function runOneTest(
       }
     }
 
-    if (Array.isArray(cliConfig.cliArgs)) {
-      args.push(...cliConfig.cliArgs);
+    let sleepAfterUploadMs = null;
+    const sleepCandidates = [];
+    const addSleepCandidate = (value, scale = 1) => {
+      if (value === undefined || value === null || value === '') return;
+      const num = Number(value);
+      if (!Number.isFinite(num) || num < 0) return;
+      sleepCandidates.push(Math.floor(num * scale));
+    };
+    if (options.sleepAfterUploadMs !== undefined) {
+      addSleepCandidate(options.sleepAfterUploadMs, 1);
+    }
+    if (options.sleepAfterUploadSeconds !== undefined) {
+      addSleepCandidate(options.sleepAfterUploadSeconds, 1000);
+    }
+    addSleepCandidate(cliConfig.sleepAfterUploadMs, 1);
+    addSleepCandidate(cliConfig.sleepAfterUploadSeconds, 1000);
+    if (sleepCandidates.length) {
+      sleepAfterUploadMs = sleepCandidates[0];
+    }
+
+    const cliArgsList = Array.isArray(cliConfig.cliArgs) ? cliConfig.cliArgs : null;
+    const hasSleepArg =
+      cliArgsList && cliArgsList.some((arg) => typeof arg === 'string' && arg.trim().toLowerCase() === '--sleep');
+    if (!hasSleepArg && sleepAfterUploadMs && sleepAfterUploadMs > 0) {
+      const sleepSeconds = Math.max(1, Math.ceil(sleepAfterUploadMs / 1000));
+      args.push('--sleep', String(sleepSeconds));
+    }
+
+    if (cliArgsList) {
+      args.push(...cliArgsList);
     }
 
     args.push('-e', wrapped);
@@ -508,6 +536,7 @@ async function runOneTest(
       let out = '';
       let err = '';
       const cliCommand = [cmd, ...args];
+      const sleepAllowance = sleepAfterUploadMs && sleepAfterUploadMs > 0 ? sleepAfterUploadMs : 0;
       const timer = setTimeout(() => {
         if (!done) {
           done = true;
@@ -528,7 +557,7 @@ async function runOneTest(
           if (resolvedPostDelay > 0) return setTimeout(finish, resolvedPostDelay);
           return finish();
         }
-      }, timeoutMs + 1000);
+      }, timeoutMs + sleepAllowance + 1000);
 
       child.stdout.on('data', (d) => {
         out += d.toString();

@@ -85,17 +85,21 @@
   - `fetchResultDelayMs` only applies before the fallback evaluation; if the JSON is printed via the wrapper outside the fallback window, the harness still misses it.
   - Proposed manual fix: secondary CLI command with `--sleep 1` or `--timeout 8` in CLI args, or direct board metadata entry to control `CLI sleep`.
 
-## Current Status
+## Current Status - Issue Resolved
 
-- Latest wrapper and board config changes applied.
-- `demo/getStarted` on MDBT42Q still yields `no_result` for all tests when run via harness (without fallback).
+- Manual CLI run with `--sleep` or Web IDE run gives expected JSON.
+
+- implemented  proposed actions 1. **Implement `--sleep` (or board-specific CLI option)**  
+
+- Board CLI metadata now sets `sleepAfterUploadMs`, so the harness passes `--sleep 9` to Espruino and should keep the serial link alive long enough for wrapper JSON to print.
+- Hardware validation (20251105-201634) shows the harness capturing wrapper JSON directly: demo suite reported 4 pass / 1 fail (guard) / 1 skip with expected reasons.
 - Fallback `load()` prints JSON + `__NO_RESULT__`.
 - Manual CLI run with `--sleep` or Web IDE run gives expected JSON.
 
-## Proposed Actions / Next Steps
+## Proposed Actions / Next Steps (Not Required - issue resolved)
 
 1. **Implement `--sleep` (or board-specific CLI option)**  
-   - Add to `boards/MDBT42Q/cli.json` `cliArgs: ['--sleep', '3', ...]`. Espruino CLI will wait 3s before disconnecting, giving guard tests time to set `result`. Needs validation.
+   - _Done:_ `boards/MDBT42Q/cli.json` now specifies `sleepAfterUploadMs`, and the harness translates this to a CLI `--sleep` argument so uploads stay connected while the wrapper runs. Validate on hardware.
 
 2. **Alternative: board-specific `postUploadDelayMs`**  
    - In `boards/MDBT42Q/cli.json`, set `loader.postUploadDelayMs = 3000`. Runner already has support for `postUploadDelayMs` (passed to `runOneTest`). Confirm this is actually applied.
@@ -128,4 +132,3 @@
 - **Long term:**  
   - Extend harness to detect board-specific delays automatically (based on metadata) and confirm guard operations.
   - Work with Espruino CLI maintainers if needed to support “fire and wait for JSON” natively without extra scripts.
-

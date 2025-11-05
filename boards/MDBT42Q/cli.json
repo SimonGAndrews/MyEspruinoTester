@@ -3,6 +3,7 @@
   "cli": {
     "RESET_BEFORE_SEND": false,
     "SAVE_ON_SEND": 0,
+    "sleepAfterUploadMs": 9000,
     "cliArgs": [
       "--no-ble",
       "--config", "RESET_BEFORE_SEND=false",

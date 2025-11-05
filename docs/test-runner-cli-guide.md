@@ -150,10 +150,12 @@ Options:
 - `--serial-debug`: enable Gordon’s verbose serial logging (`Espruino.Core.Serial.debug()`), useful when diagnosing CLI/device churn.
 - `--pre-cli-delay`, `--post-cli-delay`: override metadata delays (milliseconds).
 - `--no-reset`: request the harness to honour no-reset behaviour (`loader.noReset=true`, `RESET_BEFORE_SEND=false`).
+- *(metadata)* `cli.sleepAfterUploadMs` / `cli.sleepAfterUploadSeconds`: board metadata fields that instruct the runner to add `--sleep` to the Espruino CLI and extend the per-test timeout by the same duration, keeping the connection open while results print.
 - `--help`, `-h`: show usage.
 
 Behaviour:
 - Builds a provenance trail for every layer applied to the test configuration.
+- When `cli.sleepAfterUploadMs` is present, automatically appends `--sleep` to the CLI command and adjusts the timeout so slower boards (e.g. MDBT42Q) have time to emit their wrapper JSON.
 - Persists per-test metadata (`runner-metadata/<test>.json`), wrapped sources, suite summaries, and a top-level `run-summary.json`.
 - Honors per-test overrides such as `timeoutMs`, `storagePreload`, and CLI/fixture merges from JSON headers.
 
