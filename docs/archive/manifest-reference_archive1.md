@@ -1,28 +1,18 @@
 # Board Manifest Reference
 
-Board manifests live under `boards/<board>/board.json` (with optional companion files) and describe everything the harness needs to flash firmware and decide which test suites to run. This document outlines the fields, typical usage, and common issues.
-
-> Note: This document is somewhat a legacy document in the sense that in earlier versions of the test harness the board manifest was the main source of metadata for a given boards use in the harness.  In version 4 of the harness the metadata scheme was extended significantly (see docs/v4_metadata_spec.md) and the board manifest became just a part of the wider scheme.  This document has been updated , in line with the V4 use of the board.json and it remains as a guide to the fields in board.json
+Board manifests live under `boards/<BOARD>.json` and describe everything the harness needs to flash firmware and decide which test suites to run. This document outlines the fields, typical usage, and common issues.
 
 ## Manifest Anatomy
 
-Each board directory typically contains:
-
-- `board.json` – required manifest for identity, firmware, flash info, and suite lists.
-- `fixture.json` – optional default fixture payload merged into `config.fixture`.
-- `cli.json` – optional CLI defaults (ports, baud, `cliArgs`, etc.) merged into `config.cli`/`config.loader`.
-
-An abbreviated `board.json` example:
-
 ```json
 {
-  "board": "ESP32C3",
+  "board": "ESP32-C3 USB/serial harness manifest",
   "description": "ESP32-C3 USB/serial harness for Espruino testing",
   "upstream": {
     "id": "ESP32C3",
-    "binary": "espruino_%v_esp32c3.bin",
-    "localJSON": "../configs/custom/ESP32C3.json"
+    "binary": "espruino_%v_esp32c3.bin"
   },
+  "localJSON": "../configs/custom/ESP32C3.json",
   "firmware": {
     "pattern": "espruino_%v_esp32c3.bin",
     "artifacts": [
@@ -39,33 +29,17 @@ An abbreviated `board.json` example:
     "freq": "80m",
     "extraArgs": ["--before", "usb_reset", "--after", "hard_reset"]
   },
+  "ports": {
+    "serial": ["/dev/ttyACM*", "/dev/ttyUSB*"],
+    "baud": 115200
+  },
+  "fixtures": {
+    "wifi": "default",
+    "peripherals": []
+  },
   "suites": {
     "default": ["javascript-core", "wifi-connectivity"],
     "available": ["javascript-core", "wifi-connectivity", "javascript-upstream"]
-  }
-}
-```
-
-Example `cli.json` alongside it:
-
-```json
-{
-  "metadataVersion": 1,
-  "cli": {
-    "ports": ["/dev/ttyACM*", "/dev/ttyUSB*"],
-    "BAUD_RATE": 115200
-  }
-}
-```
-
-Example `fixture.json`:
-
-```json
-{
-  "metadataVersion": 1,
-  "fixture": {
-    "wifi": "default",
-    "peripherals": []
   }
 }
 ```
@@ -89,26 +63,26 @@ Example `fixture.json`:
 - `extraArgs`: advanced esptool arguments (e.g., `default_reset` vs `usb_reset`).
 
 ### Ports & Fixtures
-- Values defined in `cli.json` populate `config.cli` / `config.loader`. Common keys include:
-  - `cli.ports`: wildcard patterns to help the runner suggest or auto-discover devices (the runner still expects `--port`; patterns act as hints).
-  - `cli.BAUD_RATE` or `cliArgs`: default console speed and other CLI flags.
-- Values defined in `fixture.json` fill `config.fixture` (e.g., Wi-Fi credentials, sensor setups) and become available to tests via `global.ESPRUINO_FIXTURES`.
+- `ports.serial`: wildcard patterns to help the runner suggest or auto-discover devices.
+  - The runner still expects `--port` when running tests/flashing; patterns act as hints.
+- `ports.baud`: default console speed (helps warm-up scripts).
+- `fixtures`: optional dictionary for future automation (e.g., Wi-Fi credentials, sensor setups).
 
 ### Suites
 - `suites.available`: list of suites safe to run on this board (e.g., `javascript-core`, `wifi-connectivity`, `javascript-upstream`).
 - `suites.default`: suites the runner executes when `--suites` is omitted.
 
 ### Board JSON Override
-- `upstream.localJSON` (optional): absolute or manifest-relative path to a local board JSON file compatible with the Espruino CLI.
+- `localJSON` (optional): absolute or manifest-relative path to a local board JSON file compatible with the Espruino CLI.
   - When provided, the runners pass this path directly to `espruino --board <path>`.
   - Use this to test community boards or custom firmware builds that are not published under `https://www.espruino.com/json/<BOARD>.json`.
   - The path must resolve to an existing file; the runners treat a missing file as a fatal configuration error.
-  - If `localJSON` is omitted, the runners fall back to `upstream.id`; if that is missing, the CLI uses the board name supplied on the command line.
+  - If `localJSON` is omitted, the runners fall back to `manifest.upstream.id`; if that is missing, the CLI uses the board name supplied on the command line.
 
 ## Purpose / Flow
 1. **Dry-run** (`scripts/dry-run.js`) reads the manifest to validate firmware artifacts, adapter selection, and suite availability.
 2. **Flash** (`scripts/flash.js`) pulls the flashing info (`flash`, `firmware`) and executes the appropriate adapter.
-3. **Run Tests** (`scripts/run-tests-gordonV4.js`) reads the board directory (`board.json`, `fixture.json`, `cli.json`) and merges those layers into the configuration passed to the Espruino CLI.
+3. **Run Tests** (`scripts/run-tests.js`) uses manifest data to determine default suites and board info (passed to the espruino CLI).
 4. **Node Baseline** (`scripts/run-node-baseline.js`) can use manifest defaults if `--suites` isn’t provided.
 
 ## Quick Reference
