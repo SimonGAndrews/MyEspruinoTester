@@ -1,4 +1,8 @@
-// Validate basic start/stop lifecycle for Wi-Fi soft AP mode
+/**
+ * Scope: Bring up the soft-AP interface, confirm wifi.getStatus reports AP mode,
+ * then tear everything down cleanly. Fails if startAP throws, never reports AP,
+ * or we can't stop the AP within the guard timeout.
+ */
 try {
   var wifi = require('Wifi');
   if (typeof wifi.startAP !== 'function' || typeof wifi.stopAP !== 'function') {

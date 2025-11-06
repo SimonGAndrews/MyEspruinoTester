@@ -1,4 +1,8 @@
-// Ensure wifi.getIP() reports interface info after starting soft AP
+/**
+ * Scope: Start a soft AP and verify wifi.getIP() returns a structured record
+ * (ip/netmask/gw strings). Any failure to start the AP or missing fields on
+ * the interface info causes the test to fail.
+ */
 try {
   var wifi = require('Wifi');
   if (typeof wifi.startAP !== 'function' || typeof wifi.getIP !== 'function') {
