@@ -2,7 +2,21 @@
 
 This document captures the state of Host Test Service (HTS) development as carried over to branch `V5.1`. It derives from `docs/V5_implementation_1.md` but adds the incremental context gathered during the recent work.
 
-## Functional Areas Delivered
+## Background: Work Completed up to V5
+
+### Functionality
+- The V4 harness core (see `docs/run-tests-gordonV4_workflow.md`) reached feature parity with the legacy flows (`run-tests-gordon-summary.md`, `run-tests-gordon-flow_diagram.md`) including suite layering, metadata-driven fixtures, wrapper execution, and MDBT42Q-specific upload handling (`docs/V4_implementation_3.md`, `docs/V4_implementation_4.md`).
+- Metadata handling matured through `docs/v4_metadata_spec.md`, enabling merged board/test configs, diagnostics capture, and rich runner outputs (described in `docs/run-tests-gordonV4_metadata_flow_diagram.md` and `docs/run-tests-gordonV4_summary.md`).
+- Test authoring guidance (`docs/test-writing-guide.md`) and CLI workflows (`docs/test-runner-cli-guide.md`) were aligned with the wrapper contract, serial-debug support, and the Gordon CLI options for V4.
+- Supporting functional work includes baseline board requirements (`docs/baseline-requirements.md`), manifest usage (`docs/manifest-reference.md`), and ongoing architecture notes (`docs/test-harness-architecture_WIP.md`).
+
+### Documentation
+- Process & workflow descriptions: `docs/run-tests-gordonV4_workflow.md`, `docs/run-tests-gordonV4_flow_diagram.md`, `docs/run-tests-gordonV4_metadata_flow_diagram.md`, and `docs/run-tests-gordonV4_summary.md` document the execution path, data merges, and terminology.
+- Requirements & specifications: `docs/baseline-requirements.md`, `docs/v4_metadata_spec.md`, and `docs/V5_features_spec.md` set out the behavioural expectations for harness, metadata, and upcoming host-service features.
+- Operational guides: `docs/test-runner-cli-guide.md`, `docs/test-writing-guide.md`, `docs/run-tests-gordon-summary.md`, and `docs/manifest-reference.md` guide day-to-day usage for contributors.
+- Historical implementation logs: `docs/V4_implementation_3.md`, `docs/V4_implementation_4.md`, and `docs/V5_implementation_1.md` track what was built during earlier phases; `docs/TestKit/` holds reference material gathered for hardware bring-up.
+
+## V5.1 Functional Areas Delivered (as of 2025-11-07)
 
 1. **Metadata plumbing (`lib/v4/runConfig.js:6-102`)**
    - Suite/test configs now accept `hostTestService` blocks (name, script, env, startup timeout, static fixtures).

@@ -5,9 +5,14 @@
  */
 try {
   var wifi = require('Wifi');
+  var fixtures = global.ESPRUINO_FIXTURES || {};
+  var hostSvc = (fixtures.hostService && fixtures.hostService.http_ap_poll) || fixtures.hostService;
+  if (hostSvc && hostSvc.error) {
+    __skip('Host polling service unavailable: ' + (hostSvc.errorMessage || hostSvc.error));
+    return;
+  }
   if (typeof wifi.startAP !== 'function' || typeof wifi.getIP !== 'function') {
-    result = true;
-    resultReason = 'AP/IP helpers not available on this build';
+    __skip('AP/IP helpers not available on this build');
   } else {
     var finished = false;
     function conclude(ok, reason) {

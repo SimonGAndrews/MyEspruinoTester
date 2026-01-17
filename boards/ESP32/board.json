@@ -10,9 +10,21 @@
   "firmware": {
     "pattern": "espruino_%v_esp32.bin",
     "artifacts": [
-      { "name": "bootloader", "filename": "bootloader.bin", "offset": "0x0" },
-      { "name": "partitions", "filename": "partition-table.bin", "offset": "0x8000" },
-      { "name": "application", "filename": "%pattern%", "offset": "0x10000" }
+      {
+        "name": "bootloader",
+        "filename": "bootloader.bin",
+        "offset": "0x0"
+      },
+      {
+        "name": "partitions",
+        "filename": "partition-table.bin",
+        "offset": "0x8000"
+      },
+      {
+        "name": "application",
+        "filename": "%pattern%",
+        "offset": "0x10000"
+      }
     ]
   },
   "flash": {
@@ -31,7 +43,7 @@
   "suites": {
     "default": [
       "javascript-core",
-      "library-xfsm"  
+      "library-xfsm"
     ],
     "available": [
       "javascript-core",
@@ -41,7 +53,8 @@
       "wifi-ap",
       "javascript-upstream",
       "runner-metadata",
-      "basicAsync"
+      "basicAsync",
+      "http-client-host"
     ]
   }
 }

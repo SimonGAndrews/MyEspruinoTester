@@ -62,7 +62,8 @@
       "wifi-http-client",
       "wifi-http-server",
       "wifi-mqtt-ws",
-      "wifi-station"
+      "wifi-station",
+      "http-client-host"
     ]
   }
 }

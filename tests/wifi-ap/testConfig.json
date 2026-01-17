@@ -1,0 +1,18 @@
+{
+  "config": {
+    "loader": {
+      "timeoutMs": 20000
+    }
+  },
+  "hostTestService": {
+    "name": "http_ap_poll",
+    "script": "host-services/http-ap-poll.js",
+    "env": {
+      "HTS_POLL_URL": "http://192.168.4.1/hts",
+      "HTS_INTERVAL_MS": 1000,
+      "HTS_EXPECT_STATUS": 200,
+      "HTS_EXPECT_BODY": "ok"
+    },
+    "startupTimeoutMs": 5000
+  }
+}

@@ -95,13 +95,21 @@ This document continues the v4 metadata work captured in `docs/v4_metadata.md`. 
   - Fixtures include any data the DUT needs (e.g., credentials to serve). The DUT test monitors for host requests (e.g., via `wifi.on('server', ...)`) and declares PASS when a poll arrives within the timeout.
   - HTS itself does not mark tests pass/fail; it simply supports the DUT by performing the agreed polling.
 
-- **Open questions / TODOs:**
-  1. **Readiness contract:** Implement sentinel-based startup with the timeout/spec above (ensure failure diagnostics include HTS logs).
-  2. **Lifecycle scope:** Only one HTS runs at a time. If a suite-level HTS is defined it stays alive for the whole suite and per-test HTS entries are rejected (fail-fast validation). Tests without their own HTS inherit the suite HTS; tests that need bespoke host helpers should run in suites with no suite HTS configured.
-  3. **Failure semantics:** On HTS startup failure, harness injects `fixtures.hostService.<name>.error = 'hts_startup_failed'` (with optional message) and still runs the DUT test so it can `__skip`. Consider a future `mandatory: true` flag to hard-fail instead of skip.
-  4. **Fixture schema:** Implement the namespacing/merge rules above (hostService namespace + optional `global`) and add validation errors (`hts_fixture_error`) when payloads are invalid.
-  5. **Resource cleanup:** Ensure HTS processes are terminated if the harness aborts mid-suite and their logs are archived consistently.
-  6. **Security / isolation:** Decide whether HTS scripts are restricted to repo-tracked files and whether external dependencies are allowed.
+- **Resource cleanup & logging:**  
+  - Harness tracks active HTS PIDs and registers process-level exit handlers (SIGINT/SIGTERM/unhandled rejection). On any harness shutdown path, it sends SIGTERM to all running HTS processes, waits a short grace period (e.g., 2 s), and escalates to SIGKILL if needed.  
+  - Regardless of success/failure, HTS stdout/stderr are captured into `logs/<suiteOrTest>.hts.stdout/.stderr` and included in diagnostics when failures occur.
+
+- **Security / Isolation:**  
+  - Only repository-tracked HTS scripts are permitted. The harness resolves `hostTestService.script` relative to the repo root and refuses to run paths outside the workspace (e.g., `/tmp/...`).  
+  - HTS scripts must use the repo’s existing `package.json` dependencies; runtime `npm install` or arbitrary `require` outside the checked-in tree is disallowed to keep the environment deterministic.
+
+- **Implementation backlog (initial plan):**
+  1. **Metadata plumbing** – Extend suite/test metadata loaders to accept `hostTestService` blocks (`name`, `script`, `env`, `startupTimeoutMs`, optional static fixtures) and enforce suite-vs-test HTS validation.
+  2. **Lifecycle hook** – Teach `run-tests-gordonV4.js` to spawn/track HTS processes before running a suite/test, capture stdout/stderr, and terminate them reliably (SIGTERM → grace → SIGKILL).
+  3. **Sentinel parsing & fixtures** – Implement `__HTS_FIXTURES__` / `__HTS_READY__` parsing with `startupTimeoutMs`, merge payloads under `fixtures.hostService.<name>` (plus optional `global`), and emit `hts_startup_timeout` / `hts_fixture_error` diagnostics.
+  4. **Error propagation** – When startup fails, inject `fixtures.hostService.<name>.error = 'hts_startup_failed'` so tests can `__skip`; plan for a future `mandatory: true` flag to hard-fail.
+  5. **Logging & shutdown** – Persist HTS stdout/stderr to `logs/<scope>.hts.*`, include paths in diagnostics, and ensure process-level exit handlers clean up HTS PIDs.
+  6. **Demo HTS + sample test** – Implement a reusable HTTP polling HTS (`host-services/http-client.js`) and a cooperating AP test to demonstrate the end-to-end flow, updating docs/test suites accordingly.
 
 Once these items are agreed, we can extend the metadata schema and runner to spawn HTS processes and pipe their logs/fixtures into the standard artefact set.
 

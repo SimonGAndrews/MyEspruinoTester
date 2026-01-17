@@ -1,0 +1,18 @@
+{
+  "hostTestService": {
+    "name": "http_host_echo",
+    "script": "host-services/http-host-echo.js",
+    "env": {
+      "HTS_PATH": "/hts"
+    },
+    "startupTimeoutMs": 5000
+  },
+  "config": {
+    "fixture": {
+      "wifiSta": {
+        "ssid": "BT-GZAH5J",
+        "password": "Qvm3HbnRVYAYQt"
+      }
+    }
+  }
+}
