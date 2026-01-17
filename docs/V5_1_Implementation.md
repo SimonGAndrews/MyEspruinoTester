@@ -16,6 +16,8 @@ This document captures the state of Host Test Service (HTS) development as carri
 - Operational guides: `docs/test-runner-cli-guide.md`, `docs/test-writing-guide.md`, `docs/run-tests-gordon-summary.md`, and `docs/manifest-reference.md` guide day-to-day usage for contributors.
 - Historical implementation logs: `docs/V4_implementation_3.md`, `docs/V4_implementation_4.md`, and `docs/V5_implementation_1.md` track what was built during earlier phases; `docs/TestKit/` holds reference material gathered for hardware bring-up.
 
+All of the items listed below are now captured in commit `bbd379877d77e17cf28c8fce6f823cc08d18cae8`.
+
 ## V5.1 Functional Areas Delivered (as of 2025-11-07)
 
 1. **Metadata plumbing (`lib/v4/runConfig.js:6-102`)**
