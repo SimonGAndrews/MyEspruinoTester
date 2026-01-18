@@ -1,0 +1,16 @@
+{
+  "description": "ESP32 TTH HTTP echo mode",
+  "modes": {
+    "http_echo": {
+      "fixtures": {
+        "ssid": "TTH-HTTP-ECHO",
+        "password": "TTHpass123",
+        "channel": 6,
+        "host": "192.168.4.1",
+        "port": 80,
+        "path": "/hts",
+        "transport": "tth-ap"
+      }
+    }
+  }
+}

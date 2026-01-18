@@ -1,17 +1,20 @@
 {
   "hostTestService": {
     "name": "http_host_echo",
-    "script": "host-services/http-host-echo.js",
+    "script": "host-services/tth-controller.js",
     "env": {
-      "HTS_PATH": "/hts"
+      "HTS_TTH_PORT": "/dev/ttyUSB1",
+      "HTS_TTH_SCRIPT_ID": "http_host_echo",
+      "HTS_TTH_MODE": "http_echo",
+      "HTS_TTH_FLASH_POLICY": "reuse"
     },
     "startupTimeoutMs": 5000
   },
   "config": {
     "fixture": {
       "wifiSta": {
-        "ssid": "BT-GZAH5J",
-        "password": "Qvm3HbnRVYAYQt"
+        "ssid": "TTH-HTTP-ECHO",
+        "password": "TTHpass123"
       }
     }
   }
