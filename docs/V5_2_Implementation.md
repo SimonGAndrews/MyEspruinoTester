@@ -6,6 +6,8 @@ The document then presents the extension of the development into `V5.2` which ad
 
 The document derives from `docs/V5_implementation_1.md` and continues to capture the thinking in developing the approach and track the development for `V5.2`
 
+Latest checkpoint: commit `a48e234d1f2d948b6eb8f5113b056ab6f96c2c4b` (“TTH controller planning updates”) records the controller scaffolding assets, updated planning sections, and the refreshed `http-client-host` metadata underpinning this document.
+
 ## Background: Work Completed up to V5
 
 ### Functionality
