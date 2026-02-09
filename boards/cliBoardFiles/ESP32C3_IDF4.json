@@ -5,7 +5,7 @@
   "default_console": "EV_SERIAL1",
   "default_console_baudrate": "115200",
   "variables": 16383,
-  "io_buffer_size": 1024,
+  "io_buffer_size": 4096,
   "binary_name": "espruino_%v_esp32c3.bin",
   "build": {
    "optimizeflags": "-Og",
@@ -17,6 +17,7 @@
     "SHA256",
     "SHA512",
     "TLS",
+    "FILESYSTEM",
     "BLUETOOTH",
     "NEOPIXEL"
    ],
@@ -25,28 +26,27 @@
     "DEFINES+=-DESP_STACK_SIZE=25000",
     "DEFINES+=-DJSVAR_MALLOC",
     "DEFINES+=-DUSE_FONT_6X8",
-    "DEFINES+=-DUSB_CDC",
+    "DEFINES+=-DESPR_USE_USB_SERIAL_JTAG",
     "ESP32_FLASH_MAX=1572864"
    ]
   },
   "image_url": "http://www.espruino.com/img/ESP32C3_IDF4.jpg",
   "thumb_url": "http://www.espruino.com/img/ESP32C3_IDF4_thumb.jpg",
-  "binary_version": "2v25.19",
-  "binary_url": "http://www.espruino.com/binaries/espruino_2v25.19_esp32c3.bin",
+  "binary_version": "2v28.61",
+  "binary_url": "http://www.espruino.com/binaries/espruino_2v28.61_esp32c3.bin",
   "builtin_modules": [
-   "Storage",
+   "timer",
    "Flash",
-   "CC3000",
-   "NetworkJS",
-   "TelnetServer",
-   "ESP8266",
-   "http",
-   "Wifi",
-   "net",
-   "dgram",
-   "tensorflow",
+   "Storage",
    "heatshrink",
    "fs",
+   "net",
+   "dgram",
+   "tls",
+   "http",
+   "NetworkJS",
+   "Wifi",
+   "crypto",
    "neopixel"
   ]
  },
@@ -65,7 +65,7 @@
   "saved_code": {
    "address": 3276800,
    "page_size": 4096,
-   "pages": 64,
+   "pages": 224,
    "flash_available": 1344
   }
  },
@@ -123,6 +123,7 @@
    "sortingname": "D02",
    "functions": {
     "ADC1_IN2": 0,
+    "SPI1_MISO": 0,
     "3.3": 0,
     "LED1": "pin"
    },
@@ -133,6 +134,9 @@
     ],
     "DEVICE": [
      "LED1"
+    ],
+    "SPI": [
+     "SPI1_MISO"
     ]
    }
   },
@@ -185,10 +189,15 @@
    "num": "6",
    "sortingname": "D06",
    "functions": {
+    "SPI1_SCK": 0,
     "3.3": 0
    },
    "csv": {},
-   "simplefunctions": {}
+   "simplefunctions": {
+    "SPI": [
+     "SPI1_SCK"
+    ]
+   }
   },
   {
    "name": "D7",
@@ -196,10 +205,15 @@
    "num": "7",
    "sortingname": "D07",
    "functions": {
+    "SPI1_MOSI": 0,
     "3.3": 0
    },
    "csv": {},
-   "simplefunctions": {}
+   "simplefunctions": {
+    "SPI": [
+     "SPI1_MOSI"
+    ]
+   }
   },
   {
    "name": "D8",
@@ -402,6 +416,17 @@
     "D2",
     "D18",
     "D19"
+   ]
+  },
+  "SPI1": {
+   "MISO": [
+    "D2"
+   ],
+   "SCK": [
+    "D6"
+   ],
+   "MOSI": [
+    "D7"
    ]
   },
   "I2C1": {

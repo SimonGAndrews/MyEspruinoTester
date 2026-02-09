@@ -3,12 +3,13 @@
     "name": "http_host_echo",
     "script": "host-services/tth-controller.js",
     "env": {
-      "HTS_TTH_PORT": "/dev/ttyUSB1",
+      "HTS_TTH_PORT": "/dev/ttyACM0",
       "HTS_TTH_SCRIPT_ID": "http_host_echo",
       "HTS_TTH_MODE": "http_echo",
-      "HTS_TTH_FLASH_POLICY": "reuse"
+      "HTS_TTH_FLASH_POLICY": "flash",
+      "HTS_TTH_READY_TIMEOUT_MS": "60000"
     },
-    "startupTimeoutMs": 5000
+    "startupTimeoutMs": 60000
   },
   "config": {
     "fixture": {
