@@ -23,6 +23,19 @@ try {
     }
     var http = require('http');
     function log(msg) { try { print('[HTS_TEST] ' + msg); } catch (err) {} }
+    if (wifi.on && typeof wifi.on === 'function') {
+      try {
+        wifi.on('connected', function (data) {
+          try { log('Wi-Fi event connected ' + JSON.stringify(data)); } catch (e) {}
+        });
+        wifi.on('disconnected', function (data) {
+          try { log('Wi-Fi event disconnected ' + JSON.stringify(data)); } catch (e) {}
+        });
+        wifi.on('dhcp', function (data) {
+          try { log('Wi-Fi event dhcp ' + JSON.stringify(data)); } catch (e) {}
+        });
+      } catch (evtErr) {}
+    }
     var host = svc.host || '127.0.0.1';
     var port = svc.port;
     var path = svc.path || '/hts';
@@ -88,6 +101,14 @@ try {
       setTimeout(finish, 700);
     }
 
+    if (wifi.scan && typeof wifi.scan === 'function') {
+      try {
+        wifi.scan(function (aps) {
+          try { log('Wi-Fi scan: ' + JSON.stringify(aps && aps.slice ? aps.slice(0, 5) : aps)); } catch (scanErr) {}
+        });
+      } catch (scanE) {}
+    }
+
     if (wifi.setMode) {
       try { wifi.setMode('sta'); } catch (errMode) {}
     }
@@ -144,6 +165,7 @@ try {
       log('Disconnecting before connecting to ' + wifiCfg.ssid);
       disconnectBeforeConnect(function () {
         connectionOwned = true;
+        log('Calling wifi.connect to ' + wifiCfg.ssid);
         wifi.connect(wifiCfg.ssid, { password: wifiCfg.password }, function (err) {
           if (err) {
             conclude(false, 'wifi.connect error: ' + (err.message || err));
