@@ -1,15 +1,24 @@
 {
-  "description": "ESP32 TTH HTTP echo mode",
+  "schemaVersion": 1,
+  "description": "ESP32 Target Test Host providing a Wi-Fi AP plus HTTP echo endpoint.",
+  "board": "boards/ESP32C3/board.json",
+  "script": "http_host_echo.espruino",
+  "fixtureDefaults": {
+    "transport": "tth-ap",
+    "ssid": "TTH-HTTP-ECHO",
+    "password": "TTHpass123",
+    "channel": 6,
+    "port": 80,
+    "path": "/hts"
+  },
+  "flash": {
+    "saveOnSend": true
+  },
   "modes": {
     "http_echo": {
+      "description": "Expose Wi-Fi AP with HTTP echo handler for DUT client tests.",
       "fixtures": {
-        "ssid": "TTH-HTTP-ECHO",
-        "password": "TTHpass123",
-        "channel": 6,
-        "host": "192.168.4.1",
-        "port": 80,
-        "path": "/hts",
-        "transport": "tth-ap"
+        "host": "192.168.4.1"
       }
     }
   }

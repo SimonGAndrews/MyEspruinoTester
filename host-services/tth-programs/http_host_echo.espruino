@@ -1,0 +1,109 @@
+var WIFI = require('Wifi');
+var HTTP = require('http');
+
+var DEFAULTS = {
+  ssid: 'TTH-HTTP-ECHO',
+  password: 'TTHpass123',
+  channel: 6,
+  port: 80,
+  path: '/hts',
+};
+
+function clone(obj) {
+  var out = {};
+  Object.keys(obj).forEach(function (k) { out[k] = obj[k]; });
+  return out;
+}
+
+function log(msg) {
+  console.log('[TTH] ' + msg);
+}
+
+function emitFixtures(fixtures) {
+  console.log('__HOST_FIXTURES__' + JSON.stringify(fixtures));
+  console.log('__HOST_READY__');
+}
+
+var httpServer;
+var hasStarted = false;
+
+function closeServer() {
+  if (httpServer && httpServer.close) {
+    try { httpServer.close(); } catch (err) {}
+  }
+  httpServer = undefined;
+}
+
+function getApIP() {
+  var info;
+  try { info = WIFI.getIP(); } catch (e) {}
+  if (info && info.ip && info.ip !== '0.0.0.0') return info.ip;
+  return '0.0.0.0';
+}
+
+function configureAP(config) {
+  log('Invoking startAP ssid=' + config.ssid + ' channel=' + config.channel);
+  closeServer();
+  WIFI.startAP(
+    config.ssid,
+    { password: config.password, channel: config.channel, authMode: 'wpa2' },
+    function (apErr) {
+      if (apErr) {
+        log('startAP error: ' + apErr + ', retrying in 2s');
+        setTimeout(function () {
+          configureAP(config);
+        }, 2000);
+        return;
+      }
+      log('startAP success; AP IP ' + getApIP());
+      httpServer = HTTP.createServer(function (req, res) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, method: req.method, url: req.url }));
+      });
+      httpServer.on('error', function (serverErr) {
+        log('HTTP server error: ' + serverErr);
+      });
+      httpServer.listen(config.port);
+      log('HTTP server listening on port ' + config.port);
+
+      var fixtures = {
+        ssid: config.ssid,
+        password: config.password,
+        channel: config.channel,
+        host: '192.168.4.1',
+        port: config.port,
+        path: config.path,
+      };
+      emitFixtures(fixtures);
+      log('HTTP echo ready at http://' + fixtures.host + ':' + fixtures.port + fixtures.path);
+    }
+  );
+}
+
+function startServer(config) {
+  log('Stopping AP before reconfigure');
+  try { WIFI.stopAP(); } catch (errStop) {
+    log('stopAP error: ' + errStop);
+  }
+  setTimeout(function () {
+    configureAP(config);
+  }, 500);
+}
+
+function boot() {
+  if (hasStarted) {
+    log('boot already executed, skipping');
+    return;
+  }
+  hasStarted = true;
+  var cfg = clone(DEFAULTS);
+  if (global.TTH_CONFIG) {
+    Object.keys(global.TTH_CONFIG).forEach(function(key) {
+      cfg[key] = global.TTH_CONFIG[key];
+    });
+  }
+  startServer(cfg);
+}
+
+E.on('init', boot);
+boot();
