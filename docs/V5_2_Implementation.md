@@ -149,5 +149,170 @@ This approach keeps total runtime close to the current HTS model (no extra harne
   1. Finalise the manifest schema (`script`, `modes`, `defaultFixtures`, `modeOverrides`) and provide the initial `http_host_echo` entry.
   2. Factor helper utilities (e.g., `host-services/tth-controller/lib.js`) for manifest loading, CLI arg construction, and sentinel parsing.
   3. Implement flashing/reset helpers around the Espruino CLI (`espruino --port ... --board ... --code <script>`), honouring the flash policy.
-  4. Integrate serial listeners that capture TTH output and detect sentinels; pipe all stdout/stderr into the HTS log files.
-  5. Add manual CLI support so the controller can be run standalone for debugging with the same env vars used by the harness.
+ 4. Integrate serial listeners that capture TTH output and detect sentinels; pipe all stdout/stderr into the HTS log files.
+ 5. Add manual CLI support so the controller can be run standalone for debugging with the same env vars used by the harness.
+
+### Step 1 progress (2026-01-18)
+
+- **Development focus**: deliver the flashing/reset orchestration for the Target Test Host (TTH) controller so it can either program the ESP32 host (`flash` policy) or reuse a persisted image (`reuse` policy) and still surface `__HTS_FIXTURES__` / `__HTS_READY__` for the harness.
+- **Design decisions**
+  - Use the existing Espruino CLI for all interactions (flash, save, reset, monitor) to minimise dependencies and honour the same config knobs the harness already uses.
+  - Capture sentinel lines during every CLI phase (flash upload, save, reset, long-lived monitor) so readiness is detected even if the TTH emits fixtures before the dedicated monitor connects.
+  - Support persistence via `save();E.reboot();` when a manifest sets `flash.saveOnSend=true`. “Reuse” mode simply reboots the saved image through the monitor stdin instead of spawning a separate reset command.
+- **Challenges & fixes**
+  - *Lost sentinels during flashing*: initial prototype closed the CLI right after upload, so the TTH’s `__HOST_FIXTURES__` / `__HOST_READY__` lines were missed. Fixed by parsing stdout during the upload itself.
+  - *Reuse path timing*: sending `reset();` in a short-lived CLI closed the port before reboot messages appeared. Solution: keep the monitor session open, issue `E.reboot();` via its stdin, and parse the resulting boot log for sentinels.
+  - *Persistence verification*: without `save();` the TTH lost its script on reset, so reuse mode always timed out. Added manifest-driven `flash.saveOnSend` plus a controller step that calls `save();E.reboot();` immediately after flashing.
+- **Code changes**
+  - `host-services/tth-programs/http_host_echo.json` now defines the schema version, script asset, fixture defaults, and flash directives; `http_host_echo.espruino` (new file) emits `__HOST_FIXTURES__` / `__HOST_READY__`.
+  - `host-services/tth-controller/programLoader.js` handles manifest loading, deep merges, and flash settings (`saveOnSend`, `ramUpload` placeholder).
+  - `host-services/tth-controller.js` gained full orchestration: CLI spawn helpers, sentinel parsing during flash/save/reset, long-lived monitor with optional `E.reboot()`, persistence hooks, and timeout/error handling. A lightweight CLI argument parser (`--port`, `--script`, `--mode`, etc.) mirrors the env vars so the controller can be run interactively without exporting env state.
+- **Manual test runs**
+  1. **Flash & persist**  
+     - Setup: TTH ESP32 on `/dev/ttyUSB0`, DUT idle.  
+     - Command:  
+       ```
+       HTS_TTH_PORT=/dev/ttyUSB0 HTS_TTH_SCRIPT_ID=http_host_echo \
+       HTS_TTH_MODE=http_echo HTS_TTH_FLASH_POLICY=flash \
+       HTS_TTH_READY_TIMEOUT_MS=60000 node host-services/tth-controller.js
+       ```  
+     - Outcome: controller uploads the script, prints `__HTS_FIXTURES__… __HTS_READY__`, runs `save();E.reboot();`, and keeps the monitor streaming.
+  2. **Reuse saved image (env variables)**  
+     - Pre-req: previous flash run completed (script persisted).  
+     - Command:  
+       ```
+       HTS_TTH_PORT=/dev/ttyUSB0 HTS_TTH_SCRIPT_ID=http_host_echo \
+       HTS_TTH_MODE=http_echo HTS_TTH_FLASH_POLICY=reuse \
+       HTS_TTH_READY_TIMEOUT_MS=60000 node host-services/tth-controller.js
+       ```  
+     - Outcome: monitor connects, sends `E.reboot();`, captures the boot log (`__HOST_FIXTURES__`, `__HOST_READY__`), and re-emits the HTS fixtures/readiness markers. Process remains attached for harness log capture.
+  3. **Reuse saved image (CLI flags)**  
+     - Command:  
+       ```
+       node host-services/tth-controller.js \
+         --port /dev/ttyUSB0 --script http_host_echo \
+         --mode http_echo --flash-policy reuse --ready-timeout 60000
+       ```  
+     - Outcome: identical to the env-driven run; the controller emitted `__HTS_FIXTURES__` / `__HTS_READY__` and streamed the TTH logs, confirming the manual CLI interface works as expected.
+
+These steps complete the “Implement flashing/reset + serial monitoring” portion of the plan; next we will wire the suites/tests to call the controller HTS so the harness can launch it automatically.
+
+### Watchdog-disabled TTH firmware validation (2026-01-18)
+
+- **Why a new Espruino build?** During earlier controller shakedowns the ESP32C3-based TTH repeatedly rebooted while idle because the default watchdog stayed armed even though the HTTP helper spent most of its time waiting for DUT traffic. Harness runs would therefore lose the AP mid-suite and the DUT would eventually return `no_result`. To stabilise the host side we produced a watchdog-disabled Espruino build (sdkconfig tweak) tailored for the TTH.
+- **Current behaviour**: Flashing the new firmware followed by `http_host_echo.espruino` keeps the AP/HTTP service alive long enough for end-to-end testing; the controller logs show consistent `__HOST_FIXTURES__` / `__HOST_READY__` output, and manual scans from the DUT see `TTH-HTTP-ECHO` on channel 6 whenever the script loads cleanly.
+- **Impact on harness runs**: Full suite execution (`node scripts/run-tests-gordonV4.js --board ESP32 --port /dev/ttyUSB0 --suites http-client-host --serial-debug`) now progresses past HTS startup every time. Recent failures are purely DUT-side (e.g., STA scan returning `[]` or `wifi.connect` never firing), which gives a clear next diagnostic focus.
+- **Edge case**: Occasionally the TTH crashes on boot with `assert failed: jsvUnLockInline … wifi.startAP`. This is a JS engine guard complaining that `wifi.startAP` was called while a locked JS variable was already freed—likely due to the AP reconfiguration loop running before the interpreter has finished initialising. Re-uploading the script clears the issue for now, but we plan to add a guard/delay in the TTH program so `startAP` retries gracefully instead of asserting.
+
+### DUT Wi-Fi failure investigation
+
+- **Context**: After wiring `tests/http-client-host/testConfig.json` to the controller HTS and running `node scripts/run-tests-gordonV4.js --board ESP32 --port /dev/ttyUSB1 --suites http-client-host --serial-debug`, the harness successfully spawned the controller, but `test_host_http_client.js` ended with `FAIL (no_result)`. The DUT logs show it disconnecting and reconnecting to `TTH-HTTP-ECHO` but never printing the HTTP request or wrapper JSON.
+- **Current state recap**:
+  - The controller HTS foundation is working: `host-services/tth-controller.js` can flash or reuse the TTH, stream its serial output, and translate `__HOST_FIXTURES__` / `__HOST_READY__` into standard HTS sentinels derived from the manifest (`host-services/tth-programs/http_host_echo.json`). The Espruino script boots an HTTP-echo AP (`TTH-HTTP-ECHO` / `TTHpass123`) with deterministic fixture output.
+  - Manual end-to-end validation has succeeded: when RF conditions cooperated (controller reuse mode, DUT triggered manually), `tests/http-client-host` connected to the TTH AP, hit the HTTP echo endpoint, and reported PASS. This confirms the DUT test and host program are functionally correct.
+  - The ongoing blocker is RF/connection instability. During automated runs the DUT frequently hits `AUTH_EXPIRE`, the harness records `no_result`, and controller logs show AP restarts/socket errors despite the HTS readiness sentinel. Stabilising the AP/DUT interaction (AP reliability, saved credentials, DUT retry logic) is necessary before broader automation.
+- **Observed behaviour**:
+  - Controller logs confirm the TTH reboots cleanly, emits `__HOST_FIXTURES__` / `__HOST_READY__`, and keeps the AP alive (albeit with intermittent ESP32 AP warnings). No HTS timeout occurred.
+  - DUT log shows `[HTS_TEST] Disconnecting before connecting to TTH-HTTP-ECHO` followed by `wifi:mode : sta` but no subsequent “[HTS_TEST] Wi-Fi connect callback fired” line, indicating the `wifi.connect` callback never ran before the run hit the harness timeout.
+- **Failure reproduction (manual)**:
+  - Uploading `results/20260118-101918/ESP32/sources/test_host_http_client.js` to the DUT via REPL produced:
+    ```
+    I (22056) wifi:mode : sta (08:b6:1f:70:14:e8)
+    [HTS_TEST] Disconnecting before connecting to TTH-HTTP-ECHO
+    [HTS_TEST] Wi-Fi scan: [{"rssi":-89,"authMode":"open","ssid":"HP-Print-6A-ENVY 5530 series","mac":"94:57:a5:83:02:6a","channel":"1"}]
+    [HTS_TEST] Calling wifi.connect to TTH-HTTP-ECHO
+    I (22763) wifi:new:<6,1>, old:<6,0>, ap:<255,255>, sta:<6,1>, prof:1
+    I (23457) wifi:state: init -> auth (b0)
+    I (24458) wifi:state: auth -> init (200)
+    I (24460) wifi:new:<6,0>, old:<6,1>, ap:<255,255>, sta:<6,1>, prof:1
+    [HTS_TEST] Wi-Fi event disconnected {"ssid":"TTH-HTTP-ECHO","mac":"08:b6:1f:70:17:b1","reason":"2","msg":"AUTH_EXPIRE"}
+    {"__espruino_test__":true,"file":"test_host_http_client.js","status":"fail","reason":"Wi-Fi connect timeout"}
+    ```
+  - This confirms the DUT behaves correctly: it scans, attempts to authenticate with `TTH-HTTP-ECHO`, and the AP drops the station with `AUTH_EXPIRE`.
+- **Controller/TTH diagnostics**:
+  - `suite_http-client-host.hts.stdout` shows repeated `ERROR: jswrap_wifi_startAP: wifi_set_config: 257 - ssid=` and `ERROR: Socket creation failed` messages, followed by Guru Meditation resets on the TTH ESP32. Although the HTS emits `__HOST_READY__`, the AP keeps rebooting, so the SSID is rarely visible when the DUT scans.
+- **Likely root causes** (ranked by probability):
+  1. **AP reinitialisation errors on the TTH** – the log spam (`wifi_set_config: 257 - ssid=`, `Socket creation failed`) suggests `wifi.startAP` is sometimes invoked with invalid parameters or before the interface is ready, forcing repeated AP restarts right as the DUT attempts to connect.
+  2. **Socket binding too early** – the HTTP server binds before the AP IP stack is up, triggering repeated socket creation failures that may ripple into AP restarts.
+  3. **Credential persistence mismatch** – without a successful `save()` the AP settings may vanish after reboot, causing intermittent SSID broadcasts or reverting to STA mode.
+  4. **RF weakness / channel contention** – RSSI readings (≈ −89 dBm) hint the DUT may be seeing a marginal signal. Even if the AP is up, weak signal leads to `AUTH_EXPIRE` before handshake completes.
+  5. **Controller timing** – the harness uploads the DUT immediately after the controller sees `__HOST_READY__`. If the AP isn’t fully functional (DHCP not running yet) the first connect attempt fails and the test doesn’t retry.
+
+- **Diagnostic priorities**:
+  1. Instrument `http_host_echo.espruino` so AP start/stop events, channel, and IP assignments are logged once per boot; ensure `wifi.startAP` is not retried unless explicitly needed and call `wifi.stopAP()` before reconfiguration.
+  2. Double-check the TTH script saves its configuration (`save();` or `wifi.setConfig({save:true})`) so reuse mode truly boots the persisted AP without needing fresh flashing.
+  3. Run the harness with an enforced delay (e.g., `HTS_TTH_READY_DELAY_MS`) between `__HTS_READY__` and DUT upload to see if connection success improves.
+  4. Add retry logic (or manual REPL tests) on the DUT side to attempt multiple `wifi.connect` calls when the disconnect event reports `AUTH_EXPIRE` / `NO_AP_FOUND`.
+  5. Validate RF environment: keep the TTH close to the DUT, confirm SSID visibility via repeated `wifi.scan()` runs, and note RSSI values.
+  6. Review controller logs for Guru Meditation resets or unexpected reboots; if present, capture core dumps or simplify the TTH script until stable.
+
+**REPL stress tests (2026-01-18 evening)**:
+
+- **Goal**: reproduce the harness failure in isolation by repeatedly connecting the DUT STA to the TTH AP and watching for missing callbacks/events.
+- **Setup**: TTH running `http_host_echo.espruino` (persisted in flash). DUT flashed with ESP32 2v28.61, REPL attached to `/dev/ttyUSB1`.
+- **Tests performed**:
+  1. **Basic loop**: script repeatedly called `wifi.connect('TTH-HTTP-ECHO')` with a 5 s timeout between disconnects. Result: first attempt succeeded; subsequent attempts reported `wifi:state` logs showing successful association but the `wifi.connect` callback never fired (`AUTH_EXPIRE` messages appeared in disconnect events).
+  2. **Extended timeout (10 s)**: doubling `CONNECT_TIMEOUT_MS` allowed two successful cycles; after the third attempt the callback still stopped firing even though `wifi:connected` appeared in the ESP-IDF log.
+  3. **Event listeners**: added `wifi.on('connected')` / `wifi.on('disconnected')` logging—events fired for the first two attempts only. When callbacks stopped, events also stopped, confirming Espruino’s Wi-Fi driver wasn’t delivering user-level notifications despite the ESP-IDF layer connecting.
+  4. **`wifi.stop`/`wifi.disconnect` reset experiments**: tried a script that called `Wifi.stop()` (not available on ESP32) and a variant that called `wifi.disconnect()` with a 0.5 s delay before reconnecting. Both variants showed the same behaviour: the first two attempts worked, then `wifi.connect` callbacks never fired again even though the ESP-IDF layer continued to connect.
+- **Final script used for the disconnect/reset loop**:
+  ```javascript
+  var WIFI = require('Wifi');
+  var SSID = 'TTH-HTTP-ECHO';
+  var PASSWORD = 'TTHpass123';
+  var ATTEMPT_INTERVAL_MS = 10000;
+  var CONNECT_TIMEOUT_MS = 10000;
+  var RESET_DELAY_MS = 500;
+
+  function log(msg) { console.log('[STA_RESET_TEST] ' + msg); }
+
+  WIFI.on('connected', function(info) {
+    log('Event connected ' + JSON.stringify(info));
+  });
+  WIFI.on('disconnected', function(info) {
+    log('Event disconnected ' + JSON.stringify(info || {}));
+  });
+
+  function resetAndConnect(attempt) {
+    log('Attempt #' + attempt + ' starting');
+    var timeout = setTimeout(function () {
+      log('Timeout waiting for connect callback');
+    }, CONNECT_TIMEOUT_MS);
+
+    WIFI.disconnect(function () {
+      log('wifi.disconnect() complete, waiting ' + RESET_DELAY_MS + 'ms');
+      setTimeout(function () {
+        WIFI.connect(SSID, { password: PASSWORD }, function (err) {
+          clearTimeout(timeout);
+          if (err) {
+            log('Connect callback error: ' + err);
+            return;
+          }
+          var info = WIFI.getIP() || {};
+          log('Connected via callback, IP=' + info.ip);
+          setTimeout(function () {
+            log('Disconnecting via wifi.disconnect()');
+            WIFI.disconnect();
+          }, 1000);
+        });
+      }, RESET_DELAY_MS);
+    });
+  }
+
+  var attempt = 1;
+  resetAndConnect(attempt++);
+  setInterval(function () {
+    resetAndConnect(attempt++);
+  }, ATTEMPT_INTERVAL_MS);
+  ```
+- **Conclusion**: the unreliable harness behaviour stems from the DUT’s Wi-Fi stack dropping JS-level connect callbacks/events after a couple of association cycles. RF signal is strong (RSSI ≈ −10 dBm), so the issue lies in the Espruino Wi-Fi driver on ESP32. For now we must either poll `wifi.getIP()` until non-null or rely on lower-level events (if they can be made reliable) instead of waiting solely on the initial `wifi.connect` callback.
+
+- **ESP32C3 comparison run (fresh firmware, ESP-IDF 5.x)**:
+  - Reused the same `STA_RESET_TEST` script on a newly-flashed ESP32C3 connected to the same `TTH-HTTP-ECHO` AP.
+  - Every reconnect attempt continued to emit the `wifi.connect` callback and `wifi.on('connected')` event, with DHCP delivering `192.168.4.3` each time. No timeouts, no missing callbacks, and the event stream remained healthy beyond seven consecutive cycles.
+  - This demonstrates the newer ESP-IDF-based ESP32C3 firmware handles repeated STA connections correctly, so the callback loss observed on the ESP32 is a platform-specific bug.
+  - **Conclusion**: promote the ESP32C3 to the “golden” host/DUT board for Wi-Fi-centric testing while we keep the older ESP32 for compatibility checks. Using the C3 avoids the callback-drop issue and lets us advance the TTH harness work without being blocked by ESP32 firmware limitations.
+
+Capturing these diagnostics should narrow the root cause so we can stabilise the AP/DUT interaction before proceeding with broader TTH integration.
+
+**Update (instrumentation applied)**: `host-services/tth-programs/http_host_echo.espruino` now logs `stopAP` attempts, each `startAP` invocation (SSID/channel), success callbacks (current AP IP), and HTTP server bind status. These logs should surface immediately in the controller HTS stdout for upcoming tests.
